@@ -214,6 +214,29 @@ Every rule's `alternatives` field exists precisely so a reader can disagree with
 
 Principles live in `principles/<domain>/*.toml`, with rust sub-domains nested as `principles/rust/<framework>/`. To contribute a rule, add a file in the right folder and open a PR. New capability domains and stack profiles are also in scope.
 
+### Pre-flight lint
+
+A small Rust linter (`src/bin/lint.rs`, run as `cargo run --bin camerata-lint`) enforces the schema and content rules the Anatomy principle claims:
+
+- Every file parses as TOML and matches the `Principle` schema (covers required fields, `tag`/`layer`/`enforcement` enum values, and `default` is a bool).
+- `id` matches the canonical format `DOMAIN-CONCEPT-N`.
+- `id` is unique across the entire library.
+- `tag = "choice"` rules have a `[choice]` block with prompt + options + default.
+- `alternatives` is non-empty (the schema invites disagreement).
+- Title, summary, why, and alternative entries contain no backtick characters.
+
+Run the linter locally before opening a PR:
+
+```sh
+cargo run --bin camerata-lint
+# or against a different principles dir:
+cargo run --bin camerata-lint -- path/to/principles
+```
+
+The same linter runs on every PR via [`.github/workflows/lint-principles.yml`](.github/workflows/lint-principles.yml), along with a check that the PR has not modified `DEFAULT_SELECTED_DOMAINS` in `src/lib.rs` (that's a maintainer-only change per the Anatomy rule).
+
+Substantive review — alternatives being real positions some team defends, "why" answering why and not what, no cross-domain references — is handled by human reviewers today and is on the v0.2 roadmap for an LLM-assisted reviewer.
+
 ## License
 
 Dual-licensed under either:

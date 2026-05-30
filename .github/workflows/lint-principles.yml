@@ -1,0 +1,73 @@
+name: lint-principles
+
+on:
+  pull_request:
+    paths:
+      - "principles/**"
+      - "src/lib.rs"
+      - "src/principle.rs"
+      - "src/bin/lint.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/lint-principles.yml"
+  push:
+    branches: [main]
+    paths:
+      - "principles/**"
+      - "src/lib.rs"
+      - "src/principle.rs"
+      - "src/bin/lint.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/lint-principles.yml"
+
+jobs:
+  lint:
+    name: schema + content checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need at least 2 commits so the DEFAULT_SELECTED_DOMAINS check
+          # below can diff against the base ref.
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cargo cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build linter
+        run: cargo build --release --bin camerata-lint
+
+      - name: Run linter
+        run: ./target/release/camerata-lint principles/
+
+      - name: Run linter unit tests
+        run: cargo test --bin camerata-lint --release
+
+      # PRs from non-maintainer contributors must not modify the curated
+      # DEFAULT_SELECTED_DOMAINS const. Promoting a domain into the
+      # default-selected set is a separate, deliberate maintainer change.
+      # The Anatomy rule documents this boundary.
+      - name: Check DEFAULT_SELECTED_DOMAINS not modified (PRs only)
+        if: github.event_name == 'pull_request'
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if git diff "$BASE_SHA"...HEAD -- src/lib.rs | grep -q '^[+-].*DEFAULT_SELECTED_DOMAINS'; then
+            echo "::error::DEFAULT_SELECTED_DOMAINS in src/lib.rs was modified by this PR."
+            echo "Promoting a domain into the default-selected set is a maintainer-only change."
+            echo "Per the Anatomy rule, SMEs contributing a new stack profile or capability domain"
+            echo "cannot promote their own domain into the default-selected set; that requires a"
+            echo "separate, deliberate change to camerata-ai itself."
+            exit 1
+          fi
+          echo "DEFAULT_SELECTED_DOMAINS unchanged."

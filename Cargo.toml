@@ -34,3 +34,7 @@ path = "src/main.rs"
 name = "camerata-gui"
 path = "src/bin/gui.rs"
 required-features = ["gui"]
+
+[[bin]]
+name = "camerata-lint"
+path = "src/bin/lint.rs"
