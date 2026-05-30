@@ -82,6 +82,37 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 ---
 
+## 4C. Delete-confirm banner
+
+4C.1 Triggered by clicking the × button on:
+- A custom rule row in the sidebar (right side of the row, hover-tooltip "Delete this custom rule")
+- A custom domain header (right side of the row, hover-tooltip "Delete this custom domain and all its custom rules")
+
+4C.2 Canonical-library rules and domains do NOT have a × button. Deletion only applies to user-authored items.
+
+4C.3 Appears as a light-red banner between the action bar and the workspace columns.
+
+4C.4 For a custom rule deletion:
+- Header: "Delete custom rule \"<name>\"?"
+- Body: "This cannot be undone."
+
+4C.5 For a custom domain deletion:
+- Header: "Delete custom domain \"<name>\"?"
+- Body lists how many custom rules will also be deleted:
+  - 0 rules: "This domain has no custom rules. This cannot be undone."
+  - 1 rule: "Deleting this domain will also delete 1 custom rule scoped to it. This cannot be undone."
+  - N rules: "Deleting this domain will also delete <N> custom rules scoped to it. This cannot be undone."
+
+4C.6 Two buttons:
+- **Delete** (red background): performs the deletion. For a domain, this cascades — all custom rules whose domain matches are removed, the domain is removed from the custom-domain list, the domain is removed from selected_domains, and the domain is removed from the expanded set.
+- **Cancel**: dismisses the banner without deleting.
+
+4C.7 The banner closes on either button. Reopening requires clicking the × button again.
+
+4C.8 Autosave fires after the deletion completes (the autosave effect is subscribed to custom_rules / custom_domains), so the next launch reflects the deletion as in-progress state.
+
+---
+
 ## 4B. Exit-confirm banner
 
 4B.1 Triggered by either:

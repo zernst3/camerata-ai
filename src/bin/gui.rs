@@ -41,6 +41,16 @@ enum Block {
     List(Vec<String>),
 }
 
+/// What the user has asked to delete. The deletion is gated on a confirm
+/// banner so accidental clicks on the × button don't silently destroy work.
+#[derive(Clone)]
+enum DeleteTarget {
+    /// Index into the `custom_rules` Vec.
+    CustomRule(usize),
+    /// Domain name to delete, along with every custom rule scoped to it.
+    CustomDomain(String),
+}
+
 /// Markdown-lite parser: recognizes a small subset that's enough for a
 /// readable user guide without pulling in a full markdown crate.
 ///
@@ -312,6 +322,11 @@ fn app() -> Element {
     // event handler below).
     let mut exit_prompt_open = use_signal(|| false);
 
+    // The deletion the user has requested but not yet confirmed. When Some,
+    // the delete-confirm banner shows and the corresponding × button click
+    // is what set it. Cleared on Confirm (after deletion) or Cancel.
+    let mut pending_delete = use_signal(|| None::<DeleteTarget>);
+
     // Handle to the OS window. Used to (a) re-show the window after the
     // runtime auto-hides it on close, and (b) actually close the window
     // when the user picks Save-and-exit or Discard-and-exit.
@@ -478,6 +493,89 @@ fn app() -> Element {
                             pending_recovery.set(None);
                         },
                         "Start over"
+                    }
+                }
+            }
+
+            // Delete-confirm banner: shows when the user clicks the × on a
+            // custom rule or a custom domain. Confirm performs the deletion
+            // (cascading rule deletes for domains); Cancel dismisses.
+            if let Some(target) = pending_delete.read().clone() {
+                {
+                    let (header, body): (String, String) = match &target {
+                        DeleteTarget::CustomRule(idx) => {
+                            let rules = custom_rules.read();
+                            let name = rules
+                                .get(*idx)
+                                .map(|c| c.name.clone())
+                                .unwrap_or_else(|| "(unnamed)".to_string());
+                            (
+                                format!("Delete custom rule \"{name}\"?"),
+                                "This cannot be undone.".to_string(),
+                            )
+                        }
+                        DeleteTarget::CustomDomain(name) => {
+                            let count = custom_rules
+                                .read()
+                                .iter()
+                                .filter(|c| &c.domain == name)
+                                .count();
+                            let body = if count == 0 {
+                                "This domain has no custom rules. This cannot be undone.".to_string()
+                            } else if count == 1 {
+                                "Deleting this domain will also delete 1 custom rule scoped to it. This cannot be undone.".to_string()
+                            } else {
+                                format!("Deleting this domain will also delete {count} custom rules scoped to it. This cannot be undone.")
+                            };
+                            (format!("Delete custom domain \"{name}\"?"), body)
+                        }
+                    };
+                    rsx! {
+                        div { style: "background:#ffe6e6; border:1px solid #d99; border-radius:6px; padding:10px 12px; margin-bottom:8px;",
+                            div { style: "font-weight:600; margin-bottom:6px;", "{header}" }
+                            div { style: "color:#444; font-size:0.9em; margin-bottom:8px;", "{body}" }
+                            div { style: "display:flex; gap:8px;",
+                                button {
+                                    style: "background:#a00; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;",
+                                    onclick: {
+                                        let target = target.clone();
+                                        move |_| {
+                                            match &target {
+                                                DeleteTarget::CustomRule(idx) => {
+                                                    let i = *idx;
+                                                    custom_rules.with_mut(|v| {
+                                                        if i < v.len() {
+                                                            v.remove(i);
+                                                        }
+                                                    });
+                                                }
+                                                DeleteTarget::CustomDomain(name) => {
+                                                    let n = name.clone();
+                                                    custom_rules.with_mut(|v| {
+                                                        v.retain(|c| c.domain != n);
+                                                    });
+                                                    custom_domains.with_mut(|v| {
+                                                        v.retain(|d| d != &n);
+                                                    });
+                                                    selected_domains.with_mut(|s| {
+                                                        s.remove(&n);
+                                                    });
+                                                    expanded.with_mut(|s| {
+                                                        s.remove(&n);
+                                                    });
+                                                }
+                                            }
+                                            pending_delete.set(None);
+                                        }
+                                    },
+                                    "Delete"
+                                }
+                                button {
+                                    onclick: move |_| pending_delete.set(None),
+                                    "Cancel"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1010,6 +1108,23 @@ fn app() -> Element {
                                     if *open { "▾  " } else { "▸  " }
                                     "{domain_label(domain)}"
                                 }
+                                // Delete button — only on user-created custom
+                                // domains. Removes the domain itself plus
+                                // every custom rule scoped to it (after a
+                                // confirmation banner so accidents are caught).
+                                if custom_domains.read().contains(domain) {
+                                    button {
+                                        style: "background:none; border:none; cursor:pointer; color:#a00; font-weight:600; padding:0 4px;",
+                                        title: "Delete this custom domain and all its custom rules",
+                                        onclick: {
+                                            let d = domain.clone();
+                                            move |_| {
+                                                pending_delete.set(Some(DeleteTarget::CustomDomain(d.clone())));
+                                            }
+                                        },
+                                        "×"
+                                    }
+                                }
                             }
                             if *open {
                                 {
@@ -1084,8 +1199,16 @@ fn app() -> Element {
                                     if &c.domain == domain {
                                         div {
                                             key: "c{k}",
-                                            style: "padding:2px 0 2px 10px; color:#555; font-size:0.9em;",
-                                            "✎ {c.name}"
+                                            style: "display:flex; align-items:center; gap:6px; padding:2px 0 2px 10px; color:#555; font-size:0.9em;",
+                                            span { style: "flex:1;", "✎ {c.name}" }
+                                            button {
+                                                style: "background:none; border:none; cursor:pointer; color:#a00; padding:0 4px;",
+                                                title: "Delete this custom rule",
+                                                onclick: move |_| {
+                                                    pending_delete.set(Some(DeleteTarget::CustomRule(k)));
+                                                },
+                                                "×"
+                                            }
                                         }
                                     }
                                 }
