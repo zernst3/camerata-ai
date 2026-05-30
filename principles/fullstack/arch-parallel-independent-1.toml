@@ -1,0 +1,15 @@
+id = "ARCH-PARALLEL-INDEPENDENT-1"
+title = "Independent concurrent calls in any code path run in parallel, not sequentially"
+tag = "stack"
+domain = "fullstack"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Wherever code awaits two or more calls that have no data dependency on each other (independent repository lookups in a service, independent backend fetches in a UI component, independent third-party API calls, independent cache fetches), the calls run concurrently via the language's parallel-await primitive (try_join, Promise.all, asyncio.gather, errgroup, or equivalent). Sequential awaits on calls without a dependency are a violation. Real exceptions: calls with a true data dependency, calls that must be serialized inside the same transaction, and writes whose ordering matters semantically."
+why = "Sequential awaits sum the latency of each call (three 50ms calls take 150ms); parallel awaits take the max (three 50ms calls take 50ms). The cost of getting this wrong scales with the slowest call in the group. At network or database latency this difference is directly visible to end users in a UI and shows up as a tail-latency bump in a service. The parallel-await primitive in every modern concurrent runtime is the natural shape for this work; doing it sequentially is a positive choice that should require justification, not the default."
+alternatives = [
+    "sequential awaits even on independent calls (sums latencies needlessly; the slowdown shows up as a percentile-tail bump in service code and as a visible lag in UI code, both hard to attribute back to a specific site)",
+    "implement concurrency case-by-case without a documented default (the parallel pattern gets remembered when someone is actively thinking about performance, forgotten when they are not; throughput drifts down between performance focus periods)",
+    "fire-and-forget the slower calls in the background and return early (changes the contract from synchronous to eventually-consistent; appropriate sometimes but not a substitute for parallel awaits on synchronous reads)",
+]

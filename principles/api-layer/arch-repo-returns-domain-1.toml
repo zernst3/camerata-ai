@@ -1,0 +1,15 @@
+id = "ARCH-REPO-RETURNS-DOMAIN-1"
+title = "Repositories return domain types, never persistence representations"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Repository methods take and return domain types only. The translation between the persistence library's row, entity, or document representation and the domain type happens inside the repository implementation (via a mapping layer). The domain layer never imports or names a persistence representation."
+why = "Keeping the persistence representation an infrastructure detail is what makes the domain layer survive persistence-library changes. A schema migration, an ORM upgrade, or a switch to a different storage engine should not require recompiling business logic or rewriting service signatures. When repositories leak persistence types upward, every consumer becomes coupled to the storage library, and the cost of any library change cascades through unrelated code."
+alternatives = [
+    "expose the persistence library's row or entity type directly from repository methods (cheaper to write at first; every persistence upgrade becomes a domain-wide refactor, and lazy-loading or session-scoped behavior leaks into business code)",
+    "return a thin wrapper over the persistence type that adds helper methods (looks lightweight but still couples consumers to the underlying library's lifecycle, fetch semantics, and inheritance shape)",
+    "return persistence types from some repositories and domain types from others, depending on what is convenient (loses the architectural property; reviewers cannot tell at a call site whether they are receiving a domain type or a persistence type)",
+]

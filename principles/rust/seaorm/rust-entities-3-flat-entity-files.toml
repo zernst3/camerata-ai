@@ -1,14 +1,15 @@
 id = "RUST-ENTITIES-3"
-title = "Flat entities/<table>.rs in a dedicated entities crate"
+title = "One file per entity under entities/, named for the table"
 tag = "stack"
 domain = "rust:seaorm"
 layer = "library"
 enforcement = "structured"
 default = true
 stance = "default"
-summary = "One file per entity under entities/. The crate depends only on sea-orm, chrono, serde, uuid — no business logic, no service code."
-why = "Matches the SeaORM layout and breaks an otherwise-cyclic dependency (mappers depend on domain + entities; infrastructure depends on mappers)."
+summary = "Inside the entities crate, every entity lives in its own file under entities/<table_name>.rs. No prelude module that re-exports many entities under one name, no grouping by domain concept inside the crate. The flat shape matches SeaORM's code-generator output and lets a reader find an entity by its table name without learning a project-specific organization."
+why = "SeaORM's generator emits one file per table; matching that shape keeps generated and hand-written entities reading the same way, and makes regenerating a single table a one-file operation rather than a merge. Re-export preludes add a level of indirection that buys nothing until the crate is large enough to justify a public API surface that is not just the entity list."
 alternatives = [
-    "prelude re-exports (defer this until there is a reason)",
-    "entities living inside the infrastructure crate (violates the mapper layering and reintroduces the cycle)",
+    "group entities by domain concept inside the entities crate (a reader who knows the table name has to first map it to whichever grouping the project chose)",
+    "add a prelude module re-exporting many entities under shorter paths (extra indirection without payoff until the crate becomes a published public API)",
+    "inline multiple small entities into a single file (saves a few files but breaks the table-name-to-file-name lookup the generator output relies on)",
 ]

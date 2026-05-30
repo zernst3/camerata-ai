@@ -80,27 +80,29 @@ fn default_target(p: &Principle) -> &'static str {
 }
 
 /// Render one principle as a markdown rule block (optionally scoped to a glob).
+///
+/// The emitted block represents the project's *adopted* position on this
+/// principle, not the buffet of options that produced it. The rule body is
+/// either the default summary (when `sel.chosen` is None) or the chosen
+/// alternative text (when `sel.chosen` is Some). The rule's `alternatives`
+/// list is deliberately NOT emitted: alternatives are GUI-time decision
+/// support for the human picking the rule, and including them in the
+/// downstream agent's input would invite the agent to second-guess the
+/// commit the project has already made.
 pub fn render(sel: &Selection, scope: Option<&str>) -> String {
     let p = sel.principle;
     let mut s = String::new();
-    let stance = p
-        .stance
-        .as_deref()
-        .map(|st| format!("  _(stance: {st})_"))
-        .unwrap_or_default();
-    s.push_str(&format!("### {} — {}{}\n", p.id, p.title, stance));
-    s.push_str(&format!("{}\n", p.summary));
+    // Stance is intentionally NOT emitted. It is author-side metadata about
+    // the rule's authority level (default / recommended / opinionated) used
+    // during curation; once the project has adopted the rule, the stance
+    // label becomes ambiguous (a "default-stance" rule with a non-default
+    // alternative chosen reads as a contradiction) and adds bytes the
+    // consuming AI does not need.
+    s.push_str(&format!("### {} — {}\n", p.id, p.title));
+    let body = sel.chosen.as_deref().unwrap_or(p.summary.as_str());
+    s.push_str(&format!("{body}\n"));
     if let Some(why) = &p.why {
-        s.push_str(&format!("\n_Why:_ {}\n", why));
-    }
-    if !p.alternatives.is_empty() {
-        s.push_str("\n_Alternatives considered:_\n");
-        for alt in &p.alternatives {
-            s.push_str(&format!("- {alt}\n"));
-        }
-    }
-    if let Some(chosen) = &sel.chosen {
-        s.push_str(&format!("\n_Selected option:_ {chosen}\n"));
+        s.push_str(&format!("\n_Why:_ {why}\n"));
     }
     if let Some(scope) = scope {
         s.push_str(&format!("\n_Applies to:_ `{scope}`\n"));
@@ -186,7 +188,13 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
             domain,
             c.body.trim()
         );
-        let filename = "CLAUDE.md".to_string();
+        // Custom rules emit to AGENTS.md alongside the canonical prose
+        // rules. They are user-authored free-text guidance with no
+        // enforcement level, so they live in the same file the AI agent
+        // reads as its primary instruction surface. CLAUDE.md was the
+        // legacy default from before AGENTS.md became the cross-tool
+        // standard.
+        let filename = target_filename("aicodingrules").to_string();
         buffers.entry(filename.clone()).or_default().push_str(&block);
         *counts.entry(filename).or_insert(0) += 1;
         installed.push((format!("CUSTOM-{}", c.name.trim()), content_hash(&block)));

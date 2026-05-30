@@ -185,9 +185,17 @@ fn cmd_init(
         let chosen = match p.tag {
             Tag::Universal | Tag::Stack => None,
             Tag::Choice => match (&p.choice, defaults) {
-                (Some(c), true) => Some(c.default.clone()),
+                // In --defaults mode, "take the default" means use the
+                // rule's summary as the emitted body. Setting chosen to the
+                // option-label here would make the emit show just the label
+                // ("tiered") instead of the prose summary that describes
+                // what the default actually entails.
+                (Some(_), true) => None,
                 (Some(c), false) => {
-                    Some(inquire::Select::new(&c.prompt, c.options.clone()).prompt()?)
+                    let picked = inquire::Select::new(&c.prompt, c.options.clone()).prompt()?;
+                    // Treat an explicit pick of the default option the
+                    // same as --defaults: emit the summary, not the label.
+                    if picked == c.default { None } else { Some(picked) }
                 }
                 (None, _) => None,
             },

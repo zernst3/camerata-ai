@@ -1,0 +1,14 @@
+id = "ARCH-BOUNDARY-VALIDATION-1"
+title = "Validate every request at the boundary; downstream code trusts only validated values"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "All HTTP input (body, query, path, headers) is parsed and validated against a typed schema at the controller layer. Services and repositories never re-validate; they trust the types they receive. Validation produces a typed value (not raw strings or loosely-shaped objects), and fields that fail validation produce a 4xx response with a structured error envelope before any business logic runs."
+why = "Centralizing validation at one tier eliminates the defensive re-validation that otherwise creeps into every service method. Downstream code becomes simpler and faster because every value it receives is, by construction, valid."
+alternatives = [
+    "validate-everywhere (each layer re-checks; performance suffers and different layers eventually disagree on what counts as valid)",
+    "trust-and-fail-late (rely on the database or external service to reject bad data; produces vague errors far from the source and may have already partially succeeded)",
+]

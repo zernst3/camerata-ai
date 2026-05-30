@@ -1,0 +1,15 @@
+id = "UI-IMAGE-COMPONENT-1"
+title = "Images render through a single project-level component, not framework primitives directly"
+tag = "stack"
+domain = "ui"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "All images in feature code render through a single project-level image component that wires the CDN's variants (format negotiation, no upscaling, responsive sizes), lazy-loading defaults, fallback handling, and any A11Y defaults. Direct use of framework image primitives (next/image, Image from Vue, raw <img>, platform-native Image widgets) in feature code is forbidden and enforced with a no-restricted-imports or equivalent lint rule. The project-level component is the one place image-delivery policy lives."
+why = "Image delivery carries several policy decisions baked in: which CDN URL pattern, which transform parameters, which formats to negotiate, default sizes and breakpoints, lazy-loading thresholds, fallback behavior, accessibility defaults. Letting every call site reach for the raw framework primitive spreads those decisions across the codebase and makes them impossible to evolve without touching every file. Centralizing them in one component means changing CDN strategy, adding AVIF support, or fixing an accessibility default is a single-file change."
+alternatives = [
+    "framework image primitive everywhere (delivery policy is implicit and spread; any future strategy change is a codebase-wide refactor)",
+    "raw HTML img elements or native equivalents (loses framework-provided lazy loading, responsive variants, and format negotiation; produces measurable CLS and bandwidth regressions)",
+    "wrap the primitive in a helper used only by some teams and not others (the rule becomes a culture rather than a contract; new code drifts back to the primitive)",
+]

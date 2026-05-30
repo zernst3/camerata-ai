@@ -1,0 +1,15 @@
+id = "ARCH-API-VERSIONING-1"
+title = "API versions live in the URL prefix; changes within a version are additive only"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Public endpoints carry an explicit version in the URL path: /v1/orgs, /v2/orgs, and so on. Within a published version, no field is renamed, removed, or has its type changed; only additive changes are allowed (new optional fields, new endpoints, looser validation). Breaking changes ship as a new major version; older versions remain available for a documented deprecation window before retirement."
+why = "Versioning in the URL is the most discoverable and toolable scheme: a curl command, a router log, and a trace all surface the version at a glance. Strict additive evolution within a version means any client that worked on day one of v1 still works on day N of v1; client teams plan version migrations on their own schedule rather than reacting to every server release."
+alternatives = [
+    "header-based versioning, e.g. Accept: application/vnd.api.v2+json (less discoverable; subtle bugs when clients forget or mis-set the header)",
+    "no versioning, evolve in place (every change is a breaking change for some client; cross-team coordination becomes the bottleneck on shipping)",
+    "content negotiation across multiple representations (powerful but heavy; few clients implement it correctly, and most teams underuse the machinery they paid for)",
+]

@@ -51,6 +51,24 @@ enum DeleteTarget {
     CustomDomain(String),
 }
 
+/// A navigation the user requested while editing an in-progress custom rule.
+/// When the form is dirty, the navigation is deferred and a save-or-discard
+/// prompt appears; the chosen action runs the corresponding side effect
+/// before the navigation completes.
+#[derive(Clone)]
+enum PendingNav {
+    /// Switch the form to view/edit a different custom rule by index.
+    OpenCustomRule(usize),
+    /// Show a canonical principle's detail.
+    OpenCanonical(usize),
+    /// Open the "add custom rule" form for this domain.
+    AddCustomRule(String),
+    /// Open the "add custom domain" form.
+    AddCustomDomain,
+    /// Open the rename-custom-domain form for the given old name.
+    RenameCustomDomain(String),
+}
+
 /// Markdown-lite parser: recognizes a small subset that's enough for a
 /// readable user guide without pulling in a full markdown crate.
 ///
@@ -89,6 +107,60 @@ fn parse_markdown_lite(text: &str) -> Vec<Block> {
     }
     flush_list(&mut current_list, &mut blocks);
     blocks
+}
+
+/// Resolve a deferred navigation after the user has answered the save-or-
+/// discard prompt. Clears all right-pane modes, then opens the requested
+/// target. Signals are passed by value because Dioxus Signal<T> is Copy.
+#[allow(clippy::too_many_arguments)]
+fn apply_pending_nav(
+    nav: Option<PendingNav>,
+    mut custom_name: Signal<String>,
+    mut custom_body: Signal<String>,
+    mut editing_custom_idx: Signal<Option<usize>>,
+    mut editing_custom_domain: Signal<Option<String>>,
+    mut renamed_domain_name: Signal<String>,
+    mut adding_custom: Signal<Option<String>>,
+    mut adding_domain: Signal<bool>,
+    mut new_domain_name: Signal<String>,
+    mut detail: Signal<Option<usize>>,
+    mut custom_form_dirty: Signal<bool>,
+    custom_rules: &[CustomRule],
+) {
+    let Some(nav) = nav else { return };
+    // Clear all right-pane modes first; the matching arm below sets the
+    // new state for the requested target.
+    custom_name.set(String::new());
+    custom_body.set(String::new());
+    custom_form_dirty.set(false);
+    editing_custom_idx.set(None);
+    editing_custom_domain.set(None);
+    adding_custom.set(None);
+    adding_domain.set(false);
+    detail.set(None);
+    match nav {
+        PendingNav::OpenCustomRule(idx) => {
+            if let Some(rule) = custom_rules.get(idx) {
+                custom_name.set(rule.name.clone());
+                custom_body.set(rule.body.clone());
+                editing_custom_idx.set(Some(idx));
+            }
+        }
+        PendingNav::OpenCanonical(i) => {
+            detail.set(Some(i));
+        }
+        PendingNav::AddCustomRule(d) => {
+            adding_custom.set(Some(d));
+        }
+        PendingNav::AddCustomDomain => {
+            adding_domain.set(true);
+            new_domain_name.set(String::new());
+        }
+        PendingNav::RenameCustomDomain(d) => {
+            renamed_domain_name.set(d.clone());
+            editing_custom_domain.set(Some(d));
+        }
+    }
 }
 
 /// Cross-platform autosave path: `<data_local_dir>/camerata/in-progress.json`.
@@ -210,7 +282,7 @@ fn tag_glyph(t: Tag) -> &'static str {
 }
 
 fn opt_style(selected: bool) -> String {
-    let base = "display:block; width:100%; text-align:left; margin:3px 0; padding:6px 8px; \
+    let base = "display:block; width:100%; box-sizing:border-box; text-align:left; margin:3px 0; padding:6px 8px; \
                 border:1px solid #ccc; border-radius:4px; cursor:pointer;";
     if selected {
         format!("{base} background:#dce9ff; border-color:#5b8def;")
@@ -221,13 +293,51 @@ fn opt_style(selected: bool) -> String {
 
 fn app() -> Element {
     // Library loaded once, sorted for grouped display.
+    //
+    // Sort buckets, in display order:
+    //   1. Universal ("*")
+    //   2. Capability domains (sql, ui, permissions, ...) — alphabetical
+    //   3. Stack profiles — grouped by stack_base so a language and its
+    //      nested library/framework domains cluster (rust + rust:dioxus +
+    //      rust:seaorm together; js + js:next together)
+    //
+    // Within a stack family, the layer order (Language < Library <
+    // Framework) determines internal order so a language-layer profile
+    // header sits above its library and framework children.
+    //
+    // The meta domains (howto, contributing) fall into the stack bucket
+    // here because they don't appear in CAPABILITIES; pinning to the top
+    // happens later when the groups list is built.
     let principles = use_signal(|| {
         let mut p = registry::load_all(&default_principles_dir()).unwrap_or_default();
+        let bucket = |d: &str| -> u8 {
+            if d == "*" {
+                0
+            } else if camerata::is_capability(d) {
+                1
+            } else {
+                2
+            }
+        };
         p.sort_by(|a, b| {
-            a.layer
-                .cmp(&b.layer)
-                .then(a.domain.cmp(&b.domain))
-                .then(a.id.cmp(&b.id))
+            let ab = bucket(a.domain.as_str());
+            let bb = bucket(b.domain.as_str());
+            ab.cmp(&bb).then_with(|| {
+                if ab == 2 {
+                    // Stack bucket: cluster by stack_base, then layer, then
+                    // exact domain, then id.
+                    let a_base = a.stack_base().unwrap_or(a.domain.as_str());
+                    let b_base = b.stack_base().unwrap_or(b.domain.as_str());
+                    a_base
+                        .cmp(b_base)
+                        .then(a.layer.cmp(&b.layer))
+                        .then(a.domain.cmp(&b.domain))
+                        .then(a.id.cmp(&b.id))
+                } else {
+                    // Universal or capability bucket: by domain then id.
+                    a.domain.cmp(&b.domain).then(a.id.cmp(&b.id))
+                }
+            })
         });
         p
     });
@@ -282,6 +392,27 @@ fn app() -> Element {
     let mut custom_body = use_signal(String::new);
     // Some(domain) while the custom-rule form is open for that domain.
     let mut adding_custom = use_signal(|| None::<String>);
+    // Some(idx) while the user is editing an existing custom rule (by index
+    // into `custom_rules`). The form is the same shape as the create form;
+    // the difference is that Save updates the existing entry in place
+    // rather than pushing a new one.
+    let mut editing_custom_idx = use_signal(|| None::<usize>);
+    // Some(original_name) while the user is renaming an existing custom
+    // domain. The form is a single name field; Save propagates the new
+    // name to every place the old name was referenced (custom_rules entries
+    // scoped to it, selected_domains, expanded, domain_repos).
+    let mut editing_custom_domain = use_signal(|| None::<String>);
+    let mut renamed_domain_name = use_signal(String::new);
+    // True when the open custom-rule form has unsaved edits relative to the
+    // version loaded into the form. Drives whether Save/Cancel are visible
+    // (view-only mode shows neither) and whether click-away triggers a
+    // save-or-discard prompt.
+    let mut custom_form_dirty = use_signal(|| false);
+    // When the user tries to navigate away from a dirty custom-rule form,
+    // the target action is captured here instead of running immediately.
+    // The prompt then offers Save / Discard / Cancel. Save and Discard both
+    // execute the pending action; Cancel keeps the user in the form.
+    let mut pending_nav = use_signal(|| None::<PendingNav>);
     let mut out_dir = use_signal(|| "/tmp/camerata-demo".to_string());
     // Target repos the architect adds, plus which repos each domain lands in.
     let mut repos = use_signal(Vec::<String>::new);
@@ -417,6 +548,18 @@ fn app() -> Element {
             autosave_initialized.set(true);
             return;
         }
+        // Critical: while the recovery banner is up, the in-memory state is
+        // the fresh-launch default (NOT the recovery file's content). If we
+        // wrote the autosave here, we would silently overwrite the recovery
+        // file with the defaults and destroy the data the user was about to
+        // resume. Skip writes until the user resolves the banner (Resume
+        // loads the file's state, after which writes can resume; Start over
+        // deletes the file, after which writes recreate it from current
+        // state). Peek so this guard does NOT re-trigger the effect when
+        // pending_recovery changes.
+        if pending_recovery.peek().is_some() {
+            return;
+        }
         if let Some(path) = autosave_path() {
             let _ = snap.save(&path);
         }
@@ -431,68 +574,83 @@ fn app() -> Element {
                 }
             }
 
-            // Recovery banner: shows when an autosave file exists from a prior
-            // session. Resume restores; Start Over deletes the autosave and
-            // continues with defaults.
+            // Recovery modal: when an autosave file exists from a prior
+            // session, force the user to decide before doing anything else.
+            // The dimmed full-window overlay blocks clicks from reaching the
+            // rest of the app, and the modal sits centered on top. The user
+            // must pick Resume (restore prior state) or Start over (discard).
+            // No outside-click dismiss — silent dismissal would leave the
+            // user in an ambiguous "did I resume or not?" state.
             if pending_recovery.read().is_some() {
-                div { style: "background:#fff8d6; border:1px solid #e2c96a; border-radius:6px; padding:8px 10px; margin-bottom:8px; display:flex; align-items:center; gap:10px;",
-                    span { style: "flex:1;", "Pick up where you left off? An unsaved in-progress profile was found." }
-                    button {
-                        onclick: move |_| {
-                            let prof_opt = pending_recovery.read().clone();
-                            if let Some(prof) = prof_opt {
-                                let lib_ids: Vec<String> = principles.read().iter().map(|p| p.id.clone()).collect();
-                                let missing = prof.missing_ids(lib_ids.iter().map(|s| s.as_str()));
-                                let lib = principles.read().clone();
-                                let id_to_idx: HashMap<String, usize> = lib.iter().enumerate().map(|(i, p)| (p.id.clone(), i)).collect();
-                                let mut new_selected = vec![false; lib.len()];
-                                for id in &prof.selected_ids {
-                                    if let Some(&i) = id_to_idx.get(id) { new_selected[i] = true; }
-                                }
-                                selected.set(new_selected);
-                                let mut new_chosen: Vec<Option<String>> = vec![None; lib.len()];
-                                for (id, v) in &prof.chosen {
-                                    if let Some(&i) = id_to_idx.get(id) { new_chosen[i] = Some(v.clone()); }
-                                }
-                                chosen.set(new_chosen);
-                                let mut new_alts: Vec<Vec<String>> = vec![Vec::new(); lib.len()];
-                                for (id, alts) in &prof.custom_alternatives {
-                                    if let Some(&i) = id_to_idx.get(id) { new_alts[i] = alts.clone(); }
-                                }
-                                custom_alts.set(new_alts);
-                                custom_rules.set(prof.custom_rules.clone());
-                                custom_domains.set(prof.custom_domains.clone());
-                                // Restore selected_domains. Legacy profiles
-                                // without this field fall back to the curated
-                                // default set + any custom domains in the
-                                // profile so canonical rules still gate correctly.
-                                let mut dom_set: HashSet<String> = prof.selected_domains.iter().cloned().collect();
-                                if dom_set.is_empty() {
-                                    for d in DEFAULT_SELECTED_DOMAINS { dom_set.insert(d.to_string()); }
-                                }
-                                for cd in &prof.custom_domains { dom_set.insert(cd.clone()); }
-                                selected_domains.set(dom_set);
-                                out_dir.set(prof.out_dir.clone());
-                                repos.set(prof.repos.clone());
-                                let mut dr: HashMap<String, HashSet<String>> = HashMap::new();
-                                for (d, rs) in &prof.domain_repos {
-                                    dr.insert(d.clone(), rs.iter().cloned().collect());
-                                }
-                                domain_repos.set(dr);
-                                missing_ids_warning.set(missing);
+                div { style: "position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(20,30,50,0.55); z-index:1000; display:flex; align-items:center; justify-content:center;",
+                    div { style: "background:#fff; border:1px solid #d0d4dc; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.28); padding:24px 28px; max-width:520px; min-width:380px;",
+                        div { style: "font-weight:700; font-size:1.15em; margin-bottom:10px; color:#222;",
+                            "Resume your previous session?"
+                        }
+                        div { style: "color:#555; line-height:1.5; margin-bottom:18px;",
+                            "An unsaved in-progress profile from a previous session was found. Pick up where you left off, or start over with the defaults. The rest of the app is locked until you choose."
+                        }
+                        div { style: "display:flex; gap:10px; justify-content:flex-end;",
+                            button {
+                                style: "background:#fff; border:1px solid #aab; border-radius:6px; padding:7px 14px; cursor:pointer;",
+                                onclick: move |_| {
+                                    if let Some(path) = autosave_path() {
+                                        let _ = std::fs::remove_file(&path);
+                                    }
+                                    pending_recovery.set(None);
+                                },
+                                "Start over"
                             }
-                            pending_recovery.set(None);
-                        },
-                        "Resume"
-                    }
-                    button {
-                        onclick: move |_| {
-                            if let Some(path) = autosave_path() {
-                                let _ = std::fs::remove_file(&path);
+                            button {
+                                style: "background:#1452a3; color:#fff; border:none; border-radius:6px; padding:7px 16px; cursor:pointer; font-weight:600;",
+                                onclick: move |_| {
+                                    let prof_opt = pending_recovery.read().clone();
+                                    if let Some(prof) = prof_opt {
+                                        let lib_ids: Vec<String> = principles.read().iter().map(|p| p.id.clone()).collect();
+                                        let missing = prof.missing_ids(lib_ids.iter().map(|s| s.as_str()));
+                                        let lib = principles.read().clone();
+                                        let id_to_idx: HashMap<String, usize> = lib.iter().enumerate().map(|(i, p)| (p.id.clone(), i)).collect();
+                                        let mut new_selected = vec![false; lib.len()];
+                                        for id in &prof.selected_ids {
+                                            if let Some(&i) = id_to_idx.get(id) { new_selected[i] = true; }
+                                        }
+                                        selected.set(new_selected);
+                                        let mut new_chosen: Vec<Option<String>> = vec![None; lib.len()];
+                                        for (id, v) in &prof.chosen {
+                                            if let Some(&i) = id_to_idx.get(id) { new_chosen[i] = Some(v.clone()); }
+                                        }
+                                        chosen.set(new_chosen);
+                                        let mut new_alts: Vec<Vec<String>> = vec![Vec::new(); lib.len()];
+                                        for (id, alts) in &prof.custom_alternatives {
+                                            if let Some(&i) = id_to_idx.get(id) { new_alts[i] = alts.clone(); }
+                                        }
+                                        custom_alts.set(new_alts);
+                                        custom_rules.set(prof.custom_rules.clone());
+                                        custom_domains.set(prof.custom_domains.clone());
+                                        // Restore selected_domains. Legacy profiles
+                                        // without this field fall back to the curated
+                                        // default set + any custom domains in the
+                                        // profile so canonical rules still gate correctly.
+                                        let mut dom_set: HashSet<String> = prof.selected_domains.iter().cloned().collect();
+                                        if dom_set.is_empty() {
+                                            for d in DEFAULT_SELECTED_DOMAINS { dom_set.insert(d.to_string()); }
+                                        }
+                                        for cd in &prof.custom_domains { dom_set.insert(cd.clone()); }
+                                        selected_domains.set(dom_set);
+                                        out_dir.set(prof.out_dir.clone());
+                                        repos.set(prof.repos.clone());
+                                        let mut dr: HashMap<String, HashSet<String>> = HashMap::new();
+                                        for (d, rs) in &prof.domain_repos {
+                                            dr.insert(d.clone(), rs.iter().cloned().collect());
+                                        }
+                                        domain_repos.set(dr);
+                                        missing_ids_warning.set(missing);
+                                    }
+                                    pending_recovery.set(None);
+                                },
+                                "Resume"
                             }
-                            pending_recovery.set(None);
-                        },
-                        "Start over"
+                        }
                     }
                 }
             }
@@ -548,6 +706,17 @@ fn app() -> Element {
                                                             v.remove(i);
                                                         }
                                                     });
+                                                    // If the edit form is open, close it (the
+                                                    // index is now stale: either it pointed at
+                                                    // the deleted rule, or at one whose index
+                                                    // has shifted down by one). Simpler to drop
+                                                    // the in-flight edit than to try to
+                                                    // re-target it.
+                                                    if editing_custom_idx.peek().is_some() {
+                                                        editing_custom_idx.set(None);
+                                                        custom_name.set(String::new());
+                                                        custom_body.set(String::new());
+                                                    }
                                                 }
                                                 DeleteTarget::CustomDomain(name) => {
                                                     let n = name.clone();
@@ -563,6 +732,15 @@ fn app() -> Element {
                                                     expanded.with_mut(|s| {
                                                         s.remove(&n);
                                                     });
+                                                    // Same defensive cleanup as the rule
+                                                    // delete path: any in-flight edit may
+                                                    // have pointed at a rule that just got
+                                                    // dropped with the domain.
+                                                    if editing_custom_idx.peek().is_some() {
+                                                        editing_custom_idx.set(None);
+                                                        custom_name.set(String::new());
+                                                        custom_body.set(String::new());
+                                                    }
                                                 }
                                             }
                                             pending_delete.set(None);
@@ -1003,7 +1181,21 @@ fn app() -> Element {
                         div { style: "font-size:0.85em; color:#777; margin-bottom:4px;",
                             "Map each domain to one or more repos (unmapped → default output):"
                         }
-                        for (domain , _open , _rows) in groups.iter() {
+                        for (domain , _open , _rows) in groups.iter().filter(|(d, _, rows)| {
+                            // Hide meta-doc domains entirely — they never emit.
+                            if is_meta_domain(d.as_str()) { return false; }
+                            // For canonical (non-custom) domains, only show if at
+                            // least one rule in the group is currently selected.
+                            // For custom domains, only show if there is at least
+                            // one custom rule scoped to it.
+                            let is_custom = custom_domains.read().contains(d);
+                            if is_custom {
+                                custom_rules.read().iter().any(|c| &c.domain == d)
+                            } else {
+                                let sel = selected.read();
+                                rows.iter().any(|(i, _, _)| sel.get(*i).copied().unwrap_or(false))
+                            }
+                        }) {
                             div { style: "display:flex; align-items:center; gap:10px; padding:2px 0; flex-wrap:wrap;",
                                 span { style: "min-width:190px;", "{domain_label(domain)}" }
                                 for r in repos.read().iter() {
@@ -1108,11 +1300,38 @@ fn app() -> Element {
                                     if *open { "▾  " } else { "▸  " }
                                     "{domain_label(domain)}"
                                 }
-                                // Delete button — only on user-created custom
-                                // domains. Removes the domain itself plus
-                                // every custom rule scoped to it (after a
-                                // confirmation banner so accidents are caught).
+                                // Edit + delete buttons — only on user-created
+                                // custom domains. Edit opens a rename form in
+                                // the right pane; delete removes the domain
+                                // plus every custom rule scoped to it (after
+                                // a confirmation banner so accidents are caught).
                                 if custom_domains.read().contains(domain) {
+                                    button {
+                                        style: "background:none; border:none; cursor:pointer; color:#1452a3; padding:0 4px;",
+                                        title: "Rename this custom domain",
+                                        onclick: {
+                                            let d = domain.clone();
+                                            move |_| {
+                                                if (editing_custom_idx.peek().is_some()
+                                                    || adding_custom.peek().is_some()
+                                                    || *adding_domain.peek()
+                                                    || editing_custom_domain.peek().is_some())
+                                                    && *custom_form_dirty.peek()
+                                                {
+                                                    pending_nav.set(Some(PendingNav::RenameCustomDomain(d.clone())));
+                                                    return;
+                                                }
+                                                editing_custom_domain.set(Some(d.clone()));
+                                                renamed_domain_name.set(d.clone());
+                                                // Close any other right-pane mode.
+                                                adding_custom.set(None);
+                                                adding_domain.set(false);
+                                                editing_custom_idx.set(None);
+                                                detail.set(None);
+                                            }
+                                        },
+                                        "✎"
+                                    }
                                     button {
                                         style: "background:none; border:none; cursor:pointer; color:#a00; font-weight:600; padding:0 4px;",
                                         title: "Delete this custom domain and all its custom rules",
@@ -1129,10 +1348,12 @@ fn app() -> Element {
                             if *open {
                                 // Defaults / All / Clear toggle per-rule
                                 // selection, which is meaningless in the
-                                // meta-doc domains (howto, contributing) —
-                                // those rules have no checkboxes. Hide
-                                // the row there.
-                                if !is_meta_domain(domain.as_str()) {
+                                // meta-doc domains (howto, contributing) and
+                                // in custom domains (they only hold custom
+                                // rules; no canonical checkboxes to toggle).
+                                if !is_meta_domain(domain.as_str())
+                                    && !custom_domains.read().contains(domain)
+                                {
                                     {
                                         let defaults: Vec<(usize, bool)> = rows
                                             .iter()
@@ -1164,7 +1385,14 @@ fn app() -> Element {
                                 }
                                 for (idx , title , tag) in rows.iter() {
                                     {
-                                        let domain_active = selected_domains.read().contains(domain)
+                                        // Meta-doc domains (howto, contributing) render their
+                                        // rules at full opacity even though they have no
+                                        // selection checkbox: the rules ARE the documentation
+                                        // and dimming them implies "disabled," which they are
+                                        // not. Selectable domains keep the gray-out behavior
+                                        // when not currently selected.
+                                        let domain_active = is_meta_domain(domain.as_str())
+                                            || selected_domains.read().contains(domain)
                                             || custom_domains.read().contains(domain);
                                         let row_style = if domain_active {
                                             "display:flex; align-items:center; gap:6px; padding:2px 0 2px 10px;"
@@ -1194,7 +1422,22 @@ fn app() -> Element {
                                                     style: "background:none; border:none; text-align:left; cursor:pointer; color:#1452a3; padding:0;",
                                                     onclick: {
                                                         let i = *idx;
-                                                        move |_| detail.set(Some(i))
+                                                        move |_| {
+                                                            if (editing_custom_idx.peek().is_some()
+                                                    || adding_custom.peek().is_some()
+                                                    || *adding_domain.peek()
+                                                    || editing_custom_domain.peek().is_some())
+                                                                && *custom_form_dirty.peek()
+                                                            {
+                                                                pending_nav.set(Some(PendingNav::OpenCanonical(i)));
+                                                                return;
+                                                            }
+                                                            editing_custom_idx.set(None);
+                                                            editing_custom_domain.set(None);
+                                                            adding_custom.set(None);
+                                                            adding_domain.set(false);
+                                                            detail.set(Some(i));
+                                                        }
                                                     },
                                                     "{tag} {title}"
                                                 }
@@ -1207,7 +1450,39 @@ fn app() -> Element {
                                         div {
                                             key: "c{k}",
                                             style: "display:flex; align-items:center; gap:6px; padding:2px 0 2px 10px; color:#555; font-size:0.9em;",
-                                            span { style: "flex:1;", "✎ {c.name}" }
+                                            button {
+                                                style: "background:none; border:none; cursor:pointer; color:#555; padding:0; text-align:left; flex:1; font-size:1em;",
+                                                title: "Open to view or edit",
+                                                onclick: move |_| {
+                                                    // If a different custom rule form is
+                                                    // open with unsaved edits, defer; the
+                                                    // save-or-discard prompt will pick the
+                                                    // navigation back up after the user
+                                                    // resolves it.
+                                                    if (editing_custom_idx.peek().is_some()
+                                                    || adding_custom.peek().is_some()
+                                                    || *adding_domain.peek()
+                                                    || editing_custom_domain.peek().is_some())
+                                                        && *custom_form_dirty.peek()
+                                                    {
+                                                        pending_nav.set(Some(PendingNav::OpenCustomRule(k)));
+                                                        return;
+                                                    }
+                                                    let snapshot = custom_rules.read().get(k).cloned();
+                                                    if let Some(rule) = snapshot {
+                                                        custom_name.set(rule.name);
+                                                        custom_body.set(rule.body);
+                                                        custom_form_dirty.set(false);
+                                                        editing_custom_idx.set(Some(k));
+                                                        // Close other right-pane modes.
+                                                        adding_custom.set(None);
+                                                        adding_domain.set(false);
+                                                        editing_custom_domain.set(None);
+                                                        detail.set(None);
+                                                    }
+                                                },
+                                                "✎ {c.name}"
+                                            }
                                             button {
                                                 style: "background:none; border:none; cursor:pointer; color:#a00; padding:0 4px;",
                                                 title: "Delete this custom rule",
@@ -1225,10 +1500,22 @@ fn app() -> Element {
                                         onclick: {
                                             let d = domain.clone();
                                             move |_| {
+                                                if (editing_custom_idx.peek().is_some()
+                                                    || adding_custom.peek().is_some()
+                                                    || *adding_domain.peek()
+                                                    || editing_custom_domain.peek().is_some())
+                                                    && *custom_form_dirty.peek()
+                                                {
+                                                    pending_nav.set(Some(PendingNav::AddCustomRule(d.clone())));
+                                                    return;
+                                                }
                                                 adding_custom.set(Some(d.clone()));
                                                 detail.set(None);
+                                                editing_custom_idx.set(None);
+                                                editing_custom_domain.set(None);
                                                 custom_name.set(String::new());
                                                 custom_body.set(String::new());
+                                                custom_form_dirty.set(false);
                                             }
                                         },
                                         "+ custom rule"
@@ -1241,10 +1528,21 @@ fn app() -> Element {
                     // domain (a domain holding only user-authored rules, no
                     // canonical principles).
                     button {
-                        style: "margin-top:10px; background:none; border:1px dashed #aaa; border-radius:4px; padding:5px 10px; cursor:pointer; color:#1452a3; width:100%;",
+                        style: "margin-top:10px; background:none; border:1px dashed #aaa; border-radius:4px; padding:5px 10px; cursor:pointer; color:#1452a3; width:100%; box-sizing:border-box;",
                         onclick: move |_| {
+                            if (editing_custom_idx.peek().is_some()
+                                                    || adding_custom.peek().is_some()
+                                                    || *adding_domain.peek()
+                                                    || editing_custom_domain.peek().is_some())
+                                && *custom_form_dirty.peek()
+                            {
+                                pending_nav.set(Some(PendingNav::AddCustomDomain));
+                                return;
+                            }
                             adding_domain.set(true);
                             adding_custom.set(None);
+                            editing_custom_idx.set(None);
+                            editing_custom_domain.set(None);
                             detail.set(None);
                             new_domain_name.set(String::new());
                         },
@@ -1261,12 +1559,66 @@ fn app() -> Element {
                             div { style: "color:#666; margin:4px 0 8px 0;",
                                 "A custom domain holds only your own rules. It will not contain canonical principles from the camerata library."
                             }
+                            // Save-or-discard prompt for click-away with text in the field.
+                            if pending_nav.read().is_some() {
+                                div { style: "background:#fff0e5; border:1px solid #d99b6a; border-radius:6px; padding:8px 10px; margin-bottom:8px;",
+                                    div { style: "font-weight:600; margin-bottom:6px;", "Unsaved new domain" }
+                                    div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
+                                        "Add the new custom domain before navigating away, or discard it."
+                                    }
+                                    div { style: "display:flex; gap:8px; flex-wrap:wrap;",
+                                        button {
+                                            onclick: move |_| {
+                                                let name = new_domain_name.read().trim().to_string();
+                                                if !name.is_empty() {
+                                                    custom_domains.with_mut(|v| {
+                                                        if !v.contains(&name) { v.push(name.clone()); }
+                                                    });
+                                                    selected_domains.with_mut(|s| { s.insert(name.clone()); });
+                                                    expanded.with_mut(|s| { s.insert(name); });
+                                                }
+                                                custom_form_dirty.set(false);
+                                                let nav = pending_nav.read().clone();
+                                                pending_nav.set(None);
+                                                apply_pending_nav(
+                                                    nav, custom_name, custom_body, editing_custom_idx,
+                                                    editing_custom_domain, renamed_domain_name, adding_custom,
+                                                    adding_domain, new_domain_name, detail, custom_form_dirty,
+                                                    &custom_rules.read(),
+                                                );
+                                            },
+                                            "Save"
+                                        }
+                                        button {
+                                            onclick: move |_| {
+                                                custom_form_dirty.set(false);
+                                                let nav = pending_nav.read().clone();
+                                                pending_nav.set(None);
+                                                apply_pending_nav(
+                                                    nav, custom_name, custom_body, editing_custom_idx,
+                                                    editing_custom_domain, renamed_domain_name, adding_custom,
+                                                    adding_domain, new_domain_name, detail, custom_form_dirty,
+                                                    &custom_rules.read(),
+                                                );
+                                            },
+                                            "Discard"
+                                        }
+                                        button {
+                                            onclick: move |_| pending_nav.set(None),
+                                            "Cancel"
+                                        }
+                                    }
+                                }
+                            }
                             input {
                                 r#type: "text",
                                 placeholder: "Domain name (e.g. our-internal-rules)",
                                 value: "{new_domain_name}",
-                                style: "width:100%; padding:5px; margin-bottom:6px;",
-                                oninput: move |e| new_domain_name.set(e.value()),
+                                style: "width:100%; padding:5px; margin-bottom:6px; box-sizing:border-box;",
+                                oninput: move |e| {
+                                    new_domain_name.set(e.value());
+                                    custom_form_dirty.set(true);
+                                },
                             }
                             div { style: "margin-top:6px; display:flex; gap:6px;",
                                 button {
@@ -1282,6 +1634,7 @@ fn app() -> Element {
                                             expanded.with_mut(|s| { s.insert(name); });
                                         }
                                         new_domain_name.set(String::new());
+                                        custom_form_dirty.set(false);
                                         adding_domain.set(false);
                                     },
                                     "Add domain"
@@ -1289,6 +1642,7 @@ fn app() -> Element {
                                 button {
                                     onclick: move |_| {
                                         new_domain_name.set(String::new());
+                                        custom_form_dirty.set(false);
                                         adding_domain.set(false);
                                     },
                                     "Cancel"
@@ -1299,19 +1653,94 @@ fn app() -> Element {
                         div {
                             h3 { style: "margin:0;", "Add a custom rule" }
                             div { style: "color:#666; margin:4px 0 8px 0;", "Domain: {domain_label(&dom)}" }
+                            // Same save-or-discard prompt as the edit form.
+                            // Appears when the user has typed something and
+                            // tried to navigate elsewhere.
+                            if pending_nav.read().is_some() {
+                                div { style: "background:#fff0e5; border:1px solid #d99b6a; border-radius:6px; padding:8px 10px; margin-bottom:8px;",
+                                    div { style: "font-weight:600; margin-bottom:6px;",
+                                        "Unsaved new rule"
+                                    }
+                                    div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
+                                        "Add the new custom rule before navigating away, or discard it."
+                                    }
+                                    div { style: "display:flex; gap:8px; flex-wrap:wrap;",
+                                        button {
+                                            onclick: move |_| {
+                                                let name = custom_name.read().clone();
+                                                let body = custom_body.read().clone();
+                                                let domain = adding_custom().unwrap_or_else(|| "*".to_string());
+                                                if !name.trim().is_empty() || !body.trim().is_empty() {
+                                                    custom_rules.with_mut(|v| v.push(CustomRule { name, body, domain }));
+                                                }
+                                                custom_form_dirty.set(false);
+                                                let nav = pending_nav.read().clone();
+                                                pending_nav.set(None);
+                                                apply_pending_nav(
+                                                    nav,
+                                                    custom_name,
+                                                    custom_body,
+                                                    editing_custom_idx,
+                                                    editing_custom_domain,
+                                                    renamed_domain_name,
+                                                    adding_custom,
+                                                    adding_domain,
+                                                    new_domain_name,
+                                                    detail,
+                                                    custom_form_dirty,
+                                                    &custom_rules.read(),
+                                                );
+                                            },
+                                            "Save"
+                                        }
+                                        button {
+                                            onclick: move |_| {
+                                                custom_form_dirty.set(false);
+                                                let nav = pending_nav.read().clone();
+                                                pending_nav.set(None);
+                                                apply_pending_nav(
+                                                    nav,
+                                                    custom_name,
+                                                    custom_body,
+                                                    editing_custom_idx,
+                                                    editing_custom_domain,
+                                                    renamed_domain_name,
+                                                    adding_custom,
+                                                    adding_domain,
+                                                    new_domain_name,
+                                                    detail,
+                                                    custom_form_dirty,
+                                                    &custom_rules.read(),
+                                                );
+                                            },
+                                            "Discard"
+                                        }
+                                        button {
+                                            onclick: move |_| pending_nav.set(None),
+                                            "Cancel"
+                                        }
+                                    }
+                                }
+                            }
                             input {
                                 r#type: "text",
                                 placeholder: "Rule name",
                                 value: "{custom_name}",
-                                style: "width:100%; padding:5px; margin-bottom:6px;",
-                                oninput: move |e| custom_name.set(e.value()),
+                                style: "width:100%; padding:5px; margin-bottom:6px; box-sizing:border-box;",
+                                oninput: move |e| {
+                                    custom_name.set(e.value());
+                                    custom_form_dirty.set(true);
+                                },
                             }
                             textarea {
                                 placeholder: "Rule text and the context it requires…",
                                 rows: "7",
-                                style: "width:100%; padding:6px;",
+                                style: "width:100%; padding:6px; box-sizing:border-box;",
                                 value: "{custom_body}",
-                                oninput: move |e| custom_body.set(e.value()),
+                                oninput: move |e| {
+                                    custom_body.set(e.value());
+                                    custom_form_dirty.set(true);
+                                },
                             }
                             div { style: "margin-top:6px; display:flex; gap:6px;",
                                 button {
@@ -1324,6 +1753,7 @@ fn app() -> Element {
                                         }
                                         custom_name.set(String::new());
                                         custom_body.set(String::new());
+                                        custom_form_dirty.set(false);
                                         adding_custom.set(None);
                                     },
                                     "Add rule"
@@ -1332,11 +1762,300 @@ fn app() -> Element {
                                     onclick: move |_| {
                                         custom_name.set(String::new());
                                         custom_body.set(String::new());
+                                        custom_form_dirty.set(false);
                                         adding_custom.set(None);
                                     },
                                     "Cancel"
                                 }
                             }
+                        }
+                    } else if let Some(old_name) = editing_custom_domain() {
+                        // Rename a custom domain. The form is a single name
+                        // field; Save propagates the new name to every
+                        // signal that previously referenced the old name.
+                        div {
+                            h3 { style: "margin:0;",
+                                if *custom_form_dirty.read() { "Rename custom domain" } else { "Custom domain" }
+                            }
+                            div { style: "color:#666; margin:4px 0 8px 0;", "Current name: {old_name}" }
+                            if pending_nav.read().is_some() {
+                                {
+                                let old = old_name.clone();
+                                rsx! {
+                                    div { style: "background:#fff0e5; border:1px solid #d99b6a; border-radius:6px; padding:8px 10px; margin-bottom:8px;",
+                                        div { style: "font-weight:600; margin-bottom:6px;", "Unsaved rename" }
+                                        div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
+                                            "Save the new name before navigating away, or discard the change."
+                                        }
+                                        div { style: "display:flex; gap:8px; flex-wrap:wrap;",
+                                            button {
+                                                onclick: {
+                                                    let old = old.clone();
+                                                    move |_| {
+                                                        let new_name = renamed_domain_name.read().trim().to_string();
+                                                        if !new_name.is_empty() && new_name != old {
+                                                            custom_domains.with_mut(|v| {
+                                                                for d in v.iter_mut() {
+                                                                    if *d == old { *d = new_name.clone(); }
+                                                                }
+                                                            });
+                                                            custom_rules.with_mut(|v| {
+                                                                for c in v.iter_mut() {
+                                                                    if c.domain == old { c.domain = new_name.clone(); }
+                                                                }
+                                                            });
+                                                            selected_domains.with_mut(|s| {
+                                                                if s.remove(&old) { s.insert(new_name.clone()); }
+                                                            });
+                                                            expanded.with_mut(|s| {
+                                                                if s.remove(&old) { s.insert(new_name.clone()); }
+                                                            });
+                                                            domain_repos.with_mut(|m| {
+                                                                if let Some(repos) = m.remove(&old) {
+                                                                    m.insert(new_name.clone(), repos);
+                                                                }
+                                                            });
+                                                        }
+                                                        custom_form_dirty.set(false);
+                                                        let nav = pending_nav.read().clone();
+                                                        pending_nav.set(None);
+                                                        apply_pending_nav(
+                                                            nav, custom_name, custom_body, editing_custom_idx,
+                                                            editing_custom_domain, renamed_domain_name, adding_custom,
+                                                            adding_domain, new_domain_name, detail, custom_form_dirty,
+                                                            &custom_rules.read(),
+                                                        );
+                                                    }
+                                                },
+                                                "Save"
+                                            }
+                                            button {
+                                                onclick: move |_| {
+                                                    custom_form_dirty.set(false);
+                                                    let nav = pending_nav.read().clone();
+                                                    pending_nav.set(None);
+                                                    apply_pending_nav(
+                                                        nav, custom_name, custom_body, editing_custom_idx,
+                                                        editing_custom_domain, renamed_domain_name, adding_custom,
+                                                        adding_domain, new_domain_name, detail, custom_form_dirty,
+                                                        &custom_rules.read(),
+                                                    );
+                                                },
+                                                "Discard"
+                                            }
+                                            button {
+                                                onclick: move |_| pending_nav.set(None),
+                                                "Cancel"
+                                            }
+                                        }
+                                    }
+                                }
+                                }
+                            }
+                            input {
+                                r#type: "text",
+                                placeholder: "New domain name",
+                                value: "{renamed_domain_name}",
+                                style: "width:100%; padding:5px; margin-bottom:6px; box-sizing:border-box;",
+                                oninput: move |e| {
+                                    renamed_domain_name.set(e.value());
+                                    custom_form_dirty.set(true);
+                                },
+                            }
+                            if *custom_form_dirty.read() {
+                                div { style: "margin-top:6px; display:flex; gap:6px;",
+                                    button {
+                                        onclick: {
+                                            let old = old_name.clone();
+                                            move |_| {
+                                                let new_name = renamed_domain_name.read().trim().to_string();
+                                                if new_name.is_empty() || new_name == old {
+                                                    editing_custom_domain.set(None);
+                                                    renamed_domain_name.set(String::new());
+                                                    custom_form_dirty.set(false);
+                                                    return;
+                                                }
+                                                custom_domains.with_mut(|v| {
+                                                    for d in v.iter_mut() {
+                                                        if *d == old { *d = new_name.clone(); }
+                                                    }
+                                                });
+                                                custom_rules.with_mut(|v| {
+                                                    for c in v.iter_mut() {
+                                                        if c.domain == old { c.domain = new_name.clone(); }
+                                                    }
+                                                });
+                                                selected_domains.with_mut(|s| {
+                                                    if s.remove(&old) { s.insert(new_name.clone()); }
+                                                });
+                                                expanded.with_mut(|s| {
+                                                    if s.remove(&old) { s.insert(new_name.clone()); }
+                                                });
+                                                domain_repos.with_mut(|m| {
+                                                    if let Some(repos) = m.remove(&old) {
+                                                        m.insert(new_name.clone(), repos);
+                                                    }
+                                                });
+                                                editing_custom_domain.set(None);
+                                                renamed_domain_name.set(String::new());
+                                                custom_form_dirty.set(false);
+                                            }
+                                        },
+                                        "Save"
+                                    }
+                                    button {
+                                        onclick: move |_| {
+                                            editing_custom_domain.set(None);
+                                            renamed_domain_name.set(String::new());
+                                            custom_form_dirty.set(false);
+                                        },
+                                        "Cancel"
+                                    }
+                                }
+                            }
+                        }
+                    } else if let Some(edit_idx) = editing_custom_idx() {
+                        {
+                        // Same form as Add a custom rule, except Save updates
+                        // the existing entry in place and the header reads
+                        // "Edit". The domain is read from the existing rule
+                        // so it stays put under the same group.
+                        let domain_for_label = custom_rules
+                            .read()
+                            .get(edit_idx)
+                            .map(|c| c.domain.clone())
+                            .unwrap_or_else(|| "*".to_string());
+                        let label = domain_label(&domain_for_label);
+                        rsx! {
+                            div {
+                                h3 { style: "margin:0;",
+                                    if *custom_form_dirty.read() { "Edit custom rule" } else { "Custom rule" }
+                                }
+                                div { style: "color:#666; margin:4px 0 8px 0;", "Domain: {label}" }
+                                // When the user has tried to navigate away
+                                // with unsaved changes, show a save/discard
+                                // prompt above the form. Cancel keeps the
+                                // user in the form with edits intact.
+                                if pending_nav.read().is_some() {
+                                    div { style: "background:#fff0e5; border:1px solid #d99b6a; border-radius:6px; padding:8px 10px; margin-bottom:8px;",
+                                        div { style: "font-weight:600; margin-bottom:6px;",
+                                            "Unsaved changes"
+                                        }
+                                        div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
+                                            "Save the edits to this custom rule before navigating away, or discard them."
+                                        }
+                                        div { style: "display:flex; gap:8px; flex-wrap:wrap;",
+                                            button {
+                                                onclick: move |_| {
+                                                    let name = custom_name.read().clone();
+                                                    let body = custom_body.read().clone();
+                                                    custom_rules.with_mut(|v| {
+                                                        if let Some(rule) = v.get_mut(edit_idx) {
+                                                            rule.name = name;
+                                                            rule.body = body;
+                                                        }
+                                                    });
+                                                    custom_form_dirty.set(false);
+                                                    let nav = pending_nav.read().clone();
+                                                    pending_nav.set(None);
+                                                    apply_pending_nav(
+                                                        nav,
+                                                        custom_name,
+                                                        custom_body,
+                                                        editing_custom_idx,
+                                                        editing_custom_domain,
+                                                        renamed_domain_name,
+                                                        adding_custom,
+                                                        adding_domain,
+                                                        new_domain_name,
+                                                        detail,
+                                                        custom_form_dirty,
+                                                        &custom_rules.read(),
+                                                    );
+                                                },
+                                                "Save"
+                                            }
+                                            button {
+                                                onclick: move |_| {
+                                                    custom_form_dirty.set(false);
+                                                    let nav = pending_nav.read().clone();
+                                                    pending_nav.set(None);
+                                                    apply_pending_nav(
+                                                        nav,
+                                                        custom_name,
+                                                        custom_body,
+                                                        editing_custom_idx,
+                                                        editing_custom_domain,
+                                                        renamed_domain_name,
+                                                        adding_custom,
+                                                        adding_domain,
+                                                        new_domain_name,
+                                                        detail,
+                                                        custom_form_dirty,
+                                                        &custom_rules.read(),
+                                                    );
+                                                },
+                                                "Discard"
+                                            }
+                                            button {
+                                                onclick: move |_| pending_nav.set(None),
+                                                "Cancel"
+                                            }
+                                        }
+                                    }
+                                }
+                                input {
+                                    r#type: "text",
+                                    placeholder: "Rule name",
+                                    value: "{custom_name}",
+                                    style: "width:100%; padding:5px; margin-bottom:6px; box-sizing:border-box;",
+                                    oninput: move |e| {
+                                        custom_name.set(e.value());
+                                        custom_form_dirty.set(true);
+                                    },
+                                }
+                                textarea {
+                                    placeholder: "Rule text and the context it requires…",
+                                    rows: "7",
+                                    style: "width:100%; padding:6px; box-sizing:border-box;",
+                                    value: "{custom_body}",
+                                    oninput: move |e| {
+                                        custom_body.set(e.value());
+                                        custom_form_dirty.set(true);
+                                    },
+                                }
+                                if *custom_form_dirty.read() {
+                                    div { style: "margin-top:6px; display:flex; gap:6px;",
+                                        button {
+                                            onclick: move |_| {
+                                                let name = custom_name.read().clone();
+                                                let body = custom_body.read().clone();
+                                                custom_rules.with_mut(|v| {
+                                                    if let Some(rule) = v.get_mut(edit_idx) {
+                                                        rule.name = name;
+                                                        rule.body = body;
+                                                    }
+                                                });
+                                                custom_name.set(String::new());
+                                                custom_body.set(String::new());
+                                                custom_form_dirty.set(false);
+                                                editing_custom_idx.set(None);
+                                            },
+                                            "Save"
+                                        }
+                                        button {
+                                            onclick: move |_| {
+                                                custom_name.set(String::new());
+                                                custom_body.set(String::new());
+                                                custom_form_dirty.set(false);
+                                                editing_custom_idx.set(None);
+                                            },
+                                            "Cancel"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         }
                     } else if let Some(i) = detail_idx {
                         div {
@@ -1419,7 +2138,7 @@ fn app() -> Element {
                                 textarea {
                                     placeholder: "Describe your alternative and the context/rationale it needs…",
                                     rows: "5",
-                                    style: "width:100%; padding:6px;",
+                                    style: "width:100%; padding:6px; box-sizing:border-box;",
                                     value: "{new_alt}",
                                     oninput: move |e| new_alt.set(e.value()),
                                 }

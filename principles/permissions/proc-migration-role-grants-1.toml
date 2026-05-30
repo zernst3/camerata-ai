@@ -1,13 +1,15 @@
 id = "PROC-MIGRATION-ROLE-GRANTS-1"
-title = "Migrations must sync system-role permission grants"
+title = "Adding a permission seeds its role grants in the same migration"
 tag = "stack"
 domain = "permissions"
 layer = "universal"
 enforcement = "structured"
 default = true
 stance = "default"
-summary = "For systems with immutable system roles: when a migration adds a permission, the same migration grants it to the relevant system roles (idempotent SQL). A missed grant is operationally invisible because the admin UI can't edit system roles."
-why = "Post-deploy, system-role permissions are only changeable via migration; a missed grant silently doesn't work for that population."
+summary = "When a migration introduces a new permission, the same migration also writes the role-permission grants for every role that should have it. The permission row and its grant rows ship together, idempotently, in one atomic change. Roles whose grants are intentionally left for post-deploy configuration are exempt, but the migration declares that intent explicitly so a reviewer can tell the difference between a missing grant and a deliberate one."
+why = "A permission with no grants is a no-op. The feature gated on it silently does nothing for anyone, with no error to surface the gap until someone notices the feature is broken in production. The write that creates the permission and the writes that connect it to roles are inseparable parts of the same change; splitting them across migrations or deferring to a separate tool leaves the system in an intermediate state where the permission exists but produces no effect."
 alternatives = [
-    "add the permission and grant it later via the admin UI (impossible for immutable system roles; silently broken)",
+    "add the permission row only and grant it later via a configuration tool (creates a permanent gap whenever the tool does not cover the role in question, or when the role's grants were never meant to be runtime-managed in the first place)",
+    "split permission insert and grant inserts across separate migrations (leaves a window where the permission exists with no grants; any deploy that lands the first migration without the second is partially broken)",
+    "rely on a seed script outside the migration system (the script and the migration drift independently, and rollbacks become incoherent across the two systems)",
 ]

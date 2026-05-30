@@ -9,5 +9,7 @@ stance = "default"
 summary = "A choice with no clear analog in existing conventions is treated as contested; lack of precedent lowers confidence even when the winner feels obvious. Pause and escalate the decision to a human reviewer rather than auto-applying the obvious-feeling answer."
 why = "Precedent is a reality-check; an 'obvious' call with no prior example is higher-risk than one anchored in existing patterns."
 alternatives = [
-    "treat obvious-feeling calls as settled regardless of precedent (the failure mode this guards against)",
+    "treat obvious-feeling calls as settled regardless of precedent (the failure mode this guards against; the call may feel obvious because it's the most-blogged answer, which is exactly the calibration failure)",
+    "apply the obvious-feeling answer immediately, then surface a flag for asynchronous review (hedges; the change is in place before the reviewer sees it, and 'good enough' tends to revert to the default once it has shipped once)",
+    "search for analogies in adjacent codebases or upstream libraries before deciding (a useful sanity check; but the absence of an analogy is itself information, and finding a weak analogy elsewhere is sometimes worse than admitting none exists)",
 ]

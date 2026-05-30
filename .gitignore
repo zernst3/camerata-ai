@@ -1,1 +1,7 @@
 /target
+
+# Local sandbox for testing scaffold output. The folder itself is tracked
+# (via .gitkeep) so it always exists after a clone; its contents are
+# ignored so test artifacts don't end up in version control.
+/sandbox/*
+!/sandbox/.gitkeep

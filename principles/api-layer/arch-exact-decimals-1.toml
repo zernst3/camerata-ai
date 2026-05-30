@@ -1,0 +1,15 @@
+id = "ARCH-EXACT-DECIMALS-1"
+title = "Monetary and quantity values use exact decimal types in code; never floats"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Any value that represents money, a counted quantity, a percentage with decimal precision, or any other domain where exact arithmetic matters is represented in code by the language's exact-decimal type (BigDecimal, Decimal, rust_decimal, decimal.Decimal, depending on language), never by binary floating-point (f64, double, Number, etc.). The persistence layer uses NUMERIC or DECIMAL columns for these values, not REAL or DOUBLE. Strings or integer-cents representations are not substitutes; they remove the ability to do arithmetic at the type level."
+why = "Binary floating-point cannot represent most decimal fractions exactly. 0.1 + 0.2 silently equals 0.30000000000000004; rounding 1.225 silently produces 1.22 in some cases and 1.23 in others. In any context where exactness is required (currency, regulated quantities, billing), floating-point introduces silent correctness bugs that surface as off-by-one-cent discrepancies, failed reconciliations, and audit findings. Exact-decimal types do the math the way humans expect; the type choice is the safety net."
+alternatives = [
+    "floating-point everywhere (silently loses precision; the failure mode is wrong numbers that look right and only surface at reconciliation time)",
+    "represent currency as integer-cents (workable for single-currency contexts; falls over when multiple currencies with different minor-unit conventions enter the picture, or when intermediate calculations need sub-cent precision)",
+    "represent decimal values as strings and parse at compute time (no arithmetic at the type level; pushes the precision problem into every consumer who has to remember to parse and round consistently)",
+]

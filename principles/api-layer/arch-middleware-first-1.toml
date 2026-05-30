@@ -1,0 +1,15 @@
+id = "ARCH-MIDDLEWARE-FIRST-1"
+title = "If a cross-cutting concern can be expressed as middleware, it must be"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Cross-cutting concerns that apply to more than one handler (authentication, authorization gates, request logging, tracing, request ID generation, rate limiting, body size limits, CORS, security headers, error-envelope rendering, idempotency-key lookup, response compression) are implemented as reusable middleware once and attached to the route or router. Inlining the same logic across handlers is forbidden, and so is per-handler helper-function calls that depend on every handler remembering to make the call. New handlers inherit the cross-cutting behavior by virtue of where they are mounted, not by virtue of what each handler's author remembers to write."
+why = "Cross-cutting logic that lives inside individual handlers drifts. Five handlers that each do their own auth check eventually have five subtly different auth checks; one new handler omits the check entirely and the gap is invisible until a security review catches it. A single middleware implementation can be reviewed once, hardened once, and changed once; every route mounted under it gets the new behavior for free. The middleware itself becomes the auditable artifact for the cross-cutting concern, and 'is this enforced everywhere?' reduces to 'is this middleware mounted at the right router level?'"
+alternatives = [
+    "inline the cross-cutting logic in each handler (the duplicated-logic failure mode; the handlers slowly diverge into subtly different implementations of the same concern, and new handlers omit the logic entirely by accident)",
+    "extract a helper function and call it from each handler (better than inline but still requires every handler to remember to call it; one new handler skips the call and the gap is invisible to the type system and to most code review)",
+    "use middleware sparingly, only for the universally-recognized cases like CORS, and leave the rest in handlers (the line between 'obvious middleware case' and 'leave it in the handler' is arbitrary, drifts per reviewer, and accumulates exceptions over time)",
+]

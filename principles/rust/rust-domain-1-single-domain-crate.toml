@@ -9,5 +9,6 @@ stance = "default"
 summary = "One domain crate. Bounded contexts are internal modules, not separate crates."
 why = "At small/medium scale (tens of entities), no real bounded-context seams have emerged; splitting prematurely adds cyclic-dependency friction, and un-splitting later is harder than splitting later."
 alternatives = [
-    "per-context crates from day one (premature split at this scale)",
+    "per-context crates from day one (premature split at this scale; cyclic-dependency friction accumulates before any real bounded-context seam has emerged)",
+    "single mega-module with no bounded-context substructure (god-shape; hard to navigate as the entity count grows; the absence of any internal structure becomes its own friction)",
 ]

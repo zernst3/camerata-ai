@@ -9,5 +9,7 @@ stance = "default"
 summary = "Entities are defined with the DeriveEntityModel macro, not hand-rolled Entity/Column/PrimaryKey impls."
 why = "Matches code-generator output, is the most googleable shape, and avoids verbose boilerplate that offers no benefit unless you are deliberately deviating."
 alternatives = [
-    "hand-rolled Entity/Column/PrimaryKey impls (verbose; no upside unless customizing)",
+    "hand-rolled Entity/Column/PrimaryKey impls (verbose; no upside unless deliberately customizing a specific entity's macro expansion)",
+    "wrap DeriveEntityModel in a project-specific entity macro that adds defaults (looks ergonomic at first; in practice the wrapper drifts from generator output and has to be re-validated against every SeaORM upgrade)",
+    "rely on the SeaORM CLI generator for every entity and check generated files in unmodified (works until an entity needs a hand-tuned variant; then the project has two divergent shapes and reviewers must learn which entities are generator-clean and which are not)",
 ]

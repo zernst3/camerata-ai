@@ -1,0 +1,15 @@
+id = "PROC-CITE-CONVENTION-ID-1"
+title = "Cite the convention ID in commit messages and PR descriptions"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "A commit (or PR description) that applies a documented convention cites its ID in the body, for example 'per ENTITIES-4' or 'follows RUST-DOMAIN-2'. The citation lives in the commit body, not the subject line, so the convention reference does not crowd the headline."
+why = "Makes drift detection and review fast. A reviewer reading a PR sees immediately which rule the change is enacting and can challenge the application on its merits without having to first reconstruct intent. Later, when someone needs to trace how a pattern got established, a single grep on the convention ID surfaces every prior application of it across the repository's history."
+alternatives = [
+    "no citation in commits (slow archaeology when a pattern needs to be traced; reviewers ask 'is this following X or contradicting it?' instead of seeing the answer in the commit)",
+    "cite only in PR descriptions, not commits (works for the PR-review pass but breaks down once the change is merged and someone is reading commit history on a branch later)",
+    "cite in code comments instead of commits (couples the citation to the source location forever, even after the convention evolves and the comment goes stale)",
+]

@@ -1,0 +1,15 @@
+id = "ARCH-IDEMPOTENCY-KEYS-1"
+title = "Non-GET writes that trigger external side effects require an idempotency key"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "POST, PUT, PATCH, and DELETE endpoints that produce external side effects (charge a card, send an email, enqueue a downstream job, write to a message queue) require an Idempotency-Key header on each request. The server stores the response keyed by that key; a retry with the same key returns the stored response instead of running the operation again. Reads and writes that are naturally idempotent at the storage layer may omit this. The key-retention window is bounded (commonly 24 hours) and documented per endpoint."
+why = "Network retries are inevitable. Without idempotency keys, a client cannot safely retry after a timeout because the original may have succeeded silently. With keys, the client retries freely until it gets a definitive response, and the server never double-executes."
+alternatives = [
+    "retry without keys (the client risks double-charging or sending duplicates on every timeout)",
+    "deduplicate via natural keys (works only when natural keys exist, are stable, and uniquely identify the intended effect, which often they are not)",
+    "make the client responsible for not retrying (pushes correctness onto every consumer; one careless caller produces duplicates)",
+]

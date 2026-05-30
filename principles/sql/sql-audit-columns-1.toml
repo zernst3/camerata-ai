@@ -1,0 +1,15 @@
+id = "SQL-AUDIT-COLUMNS-1"
+title = "Three audit-column strategies; pick by table semantics"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Pick one of three audit-column strategies per table, by what produces the rows.\n\nAdmin-curated reference tables (categories, roles, system config, lookup tables): created_by UUID + created_on timestamp + modified_by UUID + modified_on timestamp. Multiple admins edit these rows and modified_by is consumed by review tooling.\n\nUser-generated content tables (posts, comments, applications, submissions): created_at timestamp + updated_at timestamp + an author foreign key. The author FK already attributes the row; separate created_by and modified_by would duplicate it.\n\nSystem-managed event or log tables (audit_log, ingest_events, webhook_deliveries): domain-specific timestamps (received_at, processed_at, occurred_at) and no created_by or modified_by. The row's origin is the system, not a user."
+why = "A blanket created_by/modified_by/created_at/modified_at quartet on every table is wasteful (most user-generated rows never have a modified_by consumer) and misleading (event-log rows have no meaningful creator). Tagging the strategy by what produces the rows keeps the schema honest about its own provenance and avoids columns that are always NULL or always equal to a value already encoded elsewhere."
+alternatives = [
+    "blanket all-four audit columns on every table (wastes storage; misleads about who edited what for system-generated rows; produces always-NULL columns in tables where the strategy does not apply)",
+    "skip audit columns entirely (loses the attribution that admin and user-generated tables genuinely consume in workflows; makes incident review and rollback significantly harder)",
+    "use ORM-level lifecycle hooks instead of explicit columns (couples the audit trail to the framework; rows written outside the ORM, such as data migrations, replication, or direct SQL maintenance, get no audit data)",
+]

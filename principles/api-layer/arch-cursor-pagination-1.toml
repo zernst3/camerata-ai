@@ -1,0 +1,15 @@
+id = "ARCH-CURSOR-PAGINATION-1"
+title = "List endpoints paginate by cursor, not by offset"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Any list endpoint that can grow uses opaque cursor tokens for pagination: the response includes a next_cursor, the next request passes it back. Offset pagination (page=N, page_size=K) is forbidden for unbounded lists because inserts and deletes during a paging session silently shift records across pages. Bounded lists below a hard cap that does not grow may skip pagination entirely."
+why = "Offset pagination has a correctness bug under concurrent writes that the client cannot detect. Cursors anchor each page to a stable position in the result set and remain correct under inserts and deletes."
+alternatives = [
+    "offset pagination (simpler to implement; silently drops or duplicates records when the underlying list changes mid-session)",
+    "no pagination at all (forces the full list on the client; breaks at scale)",
+    "hybrid cursor + offset (both shapes exposed; doubles the surface area and the testing burden for marginal client convenience)",
+]

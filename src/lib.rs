@@ -26,6 +26,8 @@ pub const CAPABILITIES: &[&str] = &[
     "agentic",
     "ci-cd",
     "concurrency",
+    "ui",
+    "fullstack",
 ];
 
 /// Domains that ship pre-selected when the GUI launches. These are the
