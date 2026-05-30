@@ -1,0 +1,13 @@
+id = "TS-NEXT-ROUTE-PLACEMENT-1"
+title = "App Router pages live under the gated route group, not at the top level"
+tag = "stack"
+domain = "ts:next"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Pages live under app/(gated)/(main)/... (for the main chrome) or app/(gated)/admin/... (for admin chrome). Pages placed directly under app/(main)/, app/admin/, or outside (gated)/ render with only the root layout and miss their intended auth wrapper, header, and sidebar."
+why = "Route groups in App Router are how layout composition is opt-in. Placing pages outside the gated group silently skips the auth checks and layout chrome the rest of the app assumes. The error is invisible until a user reaches the page."
+alternatives = [
+    "place pages anywhere in app/ (silently bypasses auth and layout wiring; the bug surfaces in production for whichever page slipped through)",
+]

@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-13"
+title = "Entities live in their own crate, separate from infrastructure"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "The entities crate holds entity definitions only: no DB pool, no driver, no repository implementations. Canonical layout: domain ← mappers ← infrastructure ← app_services ← server, with entities ← mappers and domain ← everything."
+why = "Without separation, the import graph cycles: infrastructure needs mappers, mappers need entities, and putting entities in infrastructure makes mappers depend on infrastructure, which cargo rejects."
+alternatives = [
+    "entities inside infrastructure with mappers inlined or dropped (forms the cycle; violates the mapper layering)",
+    "repository implementations inside the mapper crate (non-standard; conflates translation with adapter logic)",
+]

@@ -1,0 +1,14 @@
+id = "RUST-MAPPER-1"
+title = "Mappers live in their own crate"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "A dedicated mappers crate depends on both the domain crate and the persistence-entities crate; neither of those depends on the other."
+why = "Enforces strict hexagonal layering: each side absorbs churn independently, and translation has one clear home."
+alternatives = [
+    "mappers inside the entity crate (couples entities to the domain shape)",
+    "mappers inside the domain crate (pulls persistence concerns into the domain)",
+]

@@ -1,0 +1,13 @@
+id = "ORCH-NOVELTY-1"
+title = "Novelty downgrades authority"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "A choice with no clear analog in existing conventions is treated as contested; lack of precedent lowers confidence even when the winner feels obvious. Pause and escalate the decision to a human reviewer rather than auto-applying the obvious-feeling answer."
+why = "Precedent is a reality-check; an 'obvious' call with no prior example is higher-risk than one anchored in existing patterns."
+alternatives = [
+    "treat obvious-feeling calls as settled regardless of precedent (the failure mode this guards against)",
+]

@@ -1,0 +1,13 @@
+id = "ORCH-NO-NATURAL-BREAK-1"
+title = "Never stop on a \"natural break\""
+tag = "stack"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "A completed chunk, a milestone, or a periodic self-check is NOT a valid stop. The only valid exits are: budget/time cap, a real escalation trigger, queue genuinely empty, or unrecoverable error. Don't wrap early with budget unspent."
+why = "For long-running work, the budget cap is the ceiling, not the target; quitting early with capacity left is a failure mode."
+alternatives = [
+    "stop at milestones / natural seams (under-uses the available budget)",
+]

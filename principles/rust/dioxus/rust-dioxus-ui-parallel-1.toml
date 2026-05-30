@@ -1,0 +1,13 @@
+id = "DIOXUS-UI-PARALLEL-1"
+title = "Independent fetches in a component MUST run in parallel"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Kick off independent fetches concurrently and render once all resolve; sequential awaits on independent calls are a violation."
+why = "Sequential awaits sum latencies; concurrent awaits max them. At network latencies (50-300ms), the difference is directly visible to users."
+alternatives = [
+    "sequential awaits (sums latencies instead of maxing them)",
+]

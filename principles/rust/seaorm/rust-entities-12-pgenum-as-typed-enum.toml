@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-12"
+title = "Postgres pgEnum columns map to typed Rust enums via DeriveActiveEnum"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Columns backed by a Postgres pgEnum are typed as a Rust enum with DeriveActiveEnum, with explicit rs_type / db_type / enum_name and a string_value per variant. Co-locate the enum in the entity file; extract to an _enums/ module lazily when a second user appears (prefer the most-conceptual-parent entity)."
+why = "Compile-time exhaustive match on the variants and a hard stop on unknown values at the boundary. Matches generator output."
+alternatives = [
+    "model the column as String (accepts any value at the Rust layer; the exact failure typed enums are meant to prevent)",
+    "create a shared _enums/ module from day one (premature extraction)",
+]

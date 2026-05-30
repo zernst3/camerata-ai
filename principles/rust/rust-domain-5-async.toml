@@ -1,0 +1,14 @@
+id = "RUST-DOMAIN-5"
+title = "Async all the way down"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "I/O functions, repo traits, service methods, and handlers are async; no block_on in layered code."
+why = "The Rust I/O ecosystem (SeaORM, Axum, tokio) is async-first; mixing sync wrappers around async runtimes is friction and a perf loss."
+alternatives = [
+    "sync-first plus block_on (friction and perf loss)",
+    "dual sync/async APIs (maintenance burden)",
+]

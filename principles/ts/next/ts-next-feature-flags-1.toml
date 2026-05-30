@@ -1,0 +1,14 @@
+id = "TS-NEXT-FEATURE-FLAGS-1"
+title = "Feature flags via env var + runtime check; no long-lived feature branches"
+tag = "stack"
+domain = "ts:next"
+layer = "framework"
+enforcement = "structured"
+default = false
+stance = "default"
+summary = "Incomplete features ship behind a per-environment env-var gate (e.g. NEXT_PUBLIC_ENABLED_FEATURES=foo,bar) checked at runtime via a single isFeatureEnabled() helper. The code lives on the trunk but user-visible behavior stays off until the env is configured."
+why = "Long-lived feature branches drift from main and the merge cost grows with the branch's age. Flag-gating lets the work merge incrementally while still keeping the feature dark in production."
+alternatives = [
+    "long-lived feature branches (drift from main; merge cost grows with branch age)",
+    "flag-on-by-default with a kill switch (flips the failure mode: a regression is on for everyone until someone notices and trips the switch)",
+]

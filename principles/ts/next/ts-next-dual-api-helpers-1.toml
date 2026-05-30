@@ -1,0 +1,14 @@
+id = "TS-NEXT-DUAL-API-1"
+title = "Two sanctioned API helpers: client vs server-only"
+tag = "stack"
+domain = "ts:next"
+layer = "framework"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "All API calls go through one of two helpers: a client-side helper (browser context, attaches credentials, handles auth redirects) or a server-only helper marked 'server-only' (can reach private-network hostnames, never bundled to the client). Direct fetch calls in components and route handlers are forbidden."
+why = "Browser fetches and server-side fetches (RSC, metadata, route handlers) have different requirements: cookies, hostnames, auth flow, secret access. Mixing them silently breaks SSR or leaks secrets. A 'server-only' marker on the server helper enforces the split at compile time."
+alternatives = [
+    "single isomorphic helper (must compromise on cookies, hostnames, and secret handling; any compromise leaks failure into the other context)",
+    "raw fetch at each call site (every call site re-derives the context handling; one slip leaks secrets or breaks SSR)",
+]

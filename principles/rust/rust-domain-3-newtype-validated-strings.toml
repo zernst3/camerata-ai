@@ -1,0 +1,15 @@
+id = "RUST-DOMAIN-3"
+title = "Newtype validated strings (Email, Url, Slug, …)"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Constrained string types are newtypes with a fallible constructor (Email::try_new); the type itself is proof of validation. Free-form text stays as String."
+why = "Removes 'is this validated?' as a question at every call site; moves it from runtime to compile time."
+alternatives = [
+    "validate at each call site (repetitive, easy to miss)",
+    "a metadata tag on a plain String (runtime, not compile-time)",
+    "no distinction between validated and raw text (loses the guarantee)",
+]

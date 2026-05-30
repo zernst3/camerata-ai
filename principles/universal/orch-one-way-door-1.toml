@@ -1,0 +1,14 @@
+id = "ORCH-ONE-WAY-DOOR-1"
+title = "One-way-door routing — blast radius gates autonomy"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Even with a clear winner, STOP and escalate the decision to a human reviewer if the call is hard to reverse: it shapes the data model, a public/API contract, or a pattern that gets copied. Two-way doors (local, encapsulated, trivially refactored) you may auto-decide. Structural/topology changes (new/moved crate or module boundary, changed public trait/API surface) always pause for a human, even with a clear winner: reversibility decays as downstream code adopts the new shape. Decaying reversibility, not file count, is the real property. (\"Routing\" in the title refers to where the decision goes: to the AI to auto-apply, or to a human to review, based on the blast radius of getting it wrong.)"
+why = "A wrong 'clear' call on a one-way door costs a migration; on a two-way door it costs ten minutes. Reversibility, not confidence, gates autonomy."
+alternatives = [
+    "confidence-gated autonomy (auto-decide whenever the winner feels obvious — misses irreversible calls)",
+    "file-count-gated (a 99-file mechanical move can be safer than a 3-file data migration)",
+]

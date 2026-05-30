@@ -1,0 +1,36 @@
+[package]
+name = "camerata-ai"
+version = "0.1.0"
+edition = "2021"
+description = "Compose AI-orchestration principles into installable guardrails for your repos."
+authors = ["Zachary Ernst <zernst3@gmail.com>"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+default-run = "camerata"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+inquire = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+dioxus = { version = "0.6", features = ["desktop"], optional = true }
+rfd = { version = "0.15", optional = true }
+dirs = { version = "5", optional = true }
+
+[features]
+gui = ["dep:dioxus", "dep:rfd", "dep:dirs"]
+
+[lib]
+name = "camerata"
+path = "src/lib.rs"
+
+[[bin]]
+name = "camerata"
+path = "src/main.rs"
+
+[[bin]]
+name = "camerata-gui"
+path = "src/bin/gui.rs"
+required-features = ["gui"]

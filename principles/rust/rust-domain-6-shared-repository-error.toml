@@ -1,0 +1,15 @@
+id = "RUST-DOMAIN-6"
+title = "One shared RepositoryError in the domain crate (+ ValidationError, DomainError)"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "A single RepositoryError enum is defined in the domain crate (NOT per-aggregate). Cross-aggregate variants: NotFound, UniqueViolation, ForeignKeyViolation, TransactionConflict, Database. Infrastructure maps driver errors into it by SQLSTATE."
+why = "Forced by the repository trait living in the domain crate; per-aggregate error enums would multiply by the number of aggregates with near-identical variants."
+alternatives = [
+    "per-aggregate error enums (duplication scales with aggregate count)",
+    "re-export an infrastructure error from the domain crate (boundary break)",
+    "use DomainError for both business-rule and persistence failures (conflates two distinct categories)",
+]

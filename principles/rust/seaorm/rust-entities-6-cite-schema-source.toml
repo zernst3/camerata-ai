@@ -1,0 +1,13 @@
+id = "RUST-ENTITIES-6"
+title = "Module-level doc comment citing the schema source"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Each entity file opens with a //! doc comment citing the source-of-truth schema location (e.g. the migration path or schema doc reference)."
+why = "Makes drift detection a one-click trace: from the entity to the schema authority that defines it."
+alternatives = [
+    "no citation in the entity file (drift checks have to be reverse-engineered each time)",
+]

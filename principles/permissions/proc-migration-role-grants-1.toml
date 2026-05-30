@@ -1,0 +1,13 @@
+id = "PROC-MIGRATION-ROLE-GRANTS-1"
+title = "Migrations must sync system-role permission grants"
+tag = "stack"
+domain = "permissions"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "For systems with immutable system roles: when a migration adds a permission, the same migration grants it to the relevant system roles (idempotent SQL). A missed grant is operationally invisible because the admin UI can't edit system roles."
+why = "Post-deploy, system-role permissions are only changeable via migration; a missed grant silently doesn't work for that population."
+alternatives = [
+    "add the permission and grant it later via the admin UI (impossible for immutable system roles; silently broken)",
+]

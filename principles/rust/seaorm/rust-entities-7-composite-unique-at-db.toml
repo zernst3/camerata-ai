@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-7"
+title = "Composite unique constraints live at the DB level only"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Do NOT put #[sea_orm(unique)] on either column of a composite unique constraint. Enforce composite uniqueness in the migration and note it in the entity's module doc comment."
+why = "A single-column unique annotation falsely implies that the column is independently unique. The DeriveEntityModel macro has no way to express a table-level composite constraint."
+alternatives = [
+    "annotate one column as unique to communicate intent (misleading: implies single-column uniqueness)",
+    "wait for a custom attribute (unsupported by the macro today)",
+]

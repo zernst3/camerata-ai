@@ -1,0 +1,13 @@
+id = "RUST-SERVICE-TX-1"
+title = "Explicit unit-of-work for transactions"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "The service opens the transaction, passes the handle to each repository call, and commits or rolls back."
+why = "Implicit ambient transaction context is unreliable across .await points and an easy source of bugs. Explicit handles make the boundaries obvious."
+alternatives = [
+    "implicit (ambient) transaction context (unreliable in async; pairs poorly with task migration)",
+]

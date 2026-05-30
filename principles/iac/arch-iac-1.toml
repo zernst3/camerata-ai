@@ -1,0 +1,13 @@
+id = "ARCH-IAC-1"
+title = "Infrastructure as code, per-environment isolation"
+tag = "stack"
+domain = "iac"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "All infra scaffolding lives in IaC (e.g. Terraform); secrets live in a per-environment vault with isolation, never in the repo or CI logs; local dev stays credential-free via injection tooling."
+why = "Reproducible environments, centralized rotation, no credential sprawl."
+alternatives = [
+    "click-ops / manual infra + secrets in repo or CI (drift, credential sprawl, no rotation)",
+]

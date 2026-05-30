@@ -1,0 +1,15 @@
+id = "RUST-DOMAIN-7"
+title = "Domain timestamps are DateTime<Utc>"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Domain types use DateTime<Utc>, not FixedOffset or NaiveDateTime. Mappers normalize with .with_timezone(&Utc) at the persistence boundary."
+why = "TIMESTAMPTZ stores UTC; the wire offset is session-determined noise. Normalize at the boundary so the domain layer reasons in a single canonical clock."
+alternatives = [
+    "FixedOffset (propagates a representational detail past the boundary)",
+    "NaiveDateTime (loses the UTC fact entirely)",
+    "raw i64 milliseconds (sheds the chrono API and adds bug surface)",
+]

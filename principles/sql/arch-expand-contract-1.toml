@@ -1,0 +1,13 @@
+id = "ARCH-EXPAND-CONTRACT-1"
+title = "Expand-then-contract for breaking schema changes"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Split breaking changes (drop/rename/NOT-NULL) across releases: expand (add new, write both), migrate reads, then contract (drop old). Migrations are schema-only; never seed user data in a migration."
+why = "With live users, a single deploy can't be paired with a breaking schema change without an incompatibility window."
+alternatives = [
+    "single-deploy breaking change (opens an incompatibility window for live users)",
+]

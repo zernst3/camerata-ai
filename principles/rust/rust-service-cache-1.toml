@@ -1,0 +1,14 @@
+id = "RUST-SERVICE-CACHE-1"
+title = "Hot reads go through a TTL + invalidation cache"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = false
+stance = "default"
+summary = "Hot read paths sit behind an in-memory cache with a TTL (e.g. 5 minutes); writes explicitly invalidate the affected key, with the TTL as a backstop. Apply to directory, profile, and RBAC reads; do not apply to mutating paths or reads that are unsafe if stale."
+why = "Cache hits are roughly 1ms while a database round-trip is 20-50ms; that is a 20-50× speedup for the common path, free per request once warmed."
+alternatives = [
+    "no cache layer (every request pays the database round-trip)",
+    "cache without explicit write-side invalidation (longer windows of stale reads)",
+]

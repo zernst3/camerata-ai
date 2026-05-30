@@ -1,0 +1,13 @@
+id = "ORCH-ENV-GATED-QUALITY-1"
+title = "Environment-gated quality — nothing ships unverified"
+tag = "stack"
+domain = "agentic"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "No autonomously-generated code reaches a shared/prod environment without passing the local quality bar (compile + lint clean + tests green); schema changes pass a migration-safety check. Multiple environments (dev/staging/prod) gate changes before they reach users."
+why = "Preventive gatekeeping catches issues before they compound downstream, where they're far more expensive. User-end testing capacity is cheaper to scale than reviewer capacity."
+alternatives = [
+    "trust-and-ship with post-hoc monitoring (issues surface in front of users)",
+]

@@ -1,0 +1,13 @@
+id = "ARCH-STRICT-LAYERING-1"
+title = "Strict layering — services orchestrate, repositories own data access"
+tag = "stack"
+domain = "api-layer"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "Controllers handle HTTP only; services hold framework-agnostic business logic; repositories own all DB query calls. Enforce the boundary with lint (block direct DB access outside the data layer). Exception: transaction flow control belongs in services."
+why = "Prevents business logic hiding inside the query layer; keeps each layer testable and swappable."
+alternatives = [
+    "mixed layers / DB access anywhere (business logic leaks into queries, hard to test)",
+]

@@ -1,0 +1,13 @@
+id = "PROC-PR-CONCURRENCY-1"
+title = "PR template forces a concurrency story"
+tag = "stack"
+domain = "concurrency"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "PRs touching shared mutable state must document the locking strategy and concurrency testing in a required template section. Skippable for read-only / UI / docs PRs."
+why = "Forcing authors to make the concurrency analysis visible and required catches races that review otherwise misses."
+alternatives = [
+    "no required concurrency section (races slip through review)",
+]

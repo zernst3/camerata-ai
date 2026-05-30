@@ -1,0 +1,14 @@
+id = "RUST-DOMAIN-8"
+title = "Postgres NUMERIC maps to rust_decimal::Decimal"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Columns of type NUMERIC are represented as rust_decimal::Decimal in the domain, never f64 or String."
+why = "NUMERIC is an exact decimal type. Floating-point cannot represent decimal fractions exactly; using it silently loses precision in a money/quantity context."
+alternatives = [
+    "f64 (silently loses precision — a money or quantity correctness bug)",
+    "String (no arithmetic; unusable in computation)",
+]

@@ -1,0 +1,13 @@
+id = "PROC-PERMISSION-CONFIG-1"
+title = "A missing permission is a config task, not a bug"
+tag = "stack"
+domain = "permissions"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "For permission-modeled systems: if a 'bug' is a missing permission grant AND the permission already exists, it's a role-config task (an admin grants it via the role UI), not a code change. Only when the permission doesn't exist at all is it code."
+why = "The admin UI exists precisely for runtime grants; filing a PR to grant an existing permission sidesteps it and multiplies handoffs."
+alternatives = [
+    "treat every access gap as a code change (multiplies handoffs, bypasses the role UI)",
+]

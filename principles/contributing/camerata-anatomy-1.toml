@@ -1,0 +1,31 @@
+id = "CAMERATA-ANATOMY-1"
+title = "Anatomy of a camerata principle (read this before adding one)"
+tag = "stack"
+domain = "contributing"
+layer = "universal"
+enforcement = "structured"
+default = false
+stance = "default"
+summary = """A canonical rule is a principle that ships in the camerata-ai library itself, added by a domain SME via a pull request to the open-source repo. (For rules you only want to keep in your own project, use the + custom rule button on any non-contributing domain instead.)
+
+The canonical rule itself is a small TOML file in principles/<domain>/.
+
+Required fields: id, title, tag, domain, layer, enforcement, default, summary, why, alternatives.
+Optional: stance, emits, and choice (required when tag = "choice").
+
+The id field MUST be unique across the entire library and traceable. Format: DOMAIN-CONCEPT-N (e.g., TS-NEXT-CONSENT-GATED-1, RUST-DOMAIN-4). PR review rejects contributions missing an id, duplicating an existing id, or using a non-traceable id. Profiles store selections by id, so a stable unique id is the contract that lets a saved profile survive future content edits without breakage. When a rule needs major revision that changes its meaning, ship a new id (RULE-2) rather than mutating the old one in place.
+
+The default field MUST be set explicitly on every rule (true or false). It controls whether the rule's checkbox auto-checks when its domain is selected. Set default = true for rules that any team adopting this domain should ship; set default = false for opinionated extras a team should opt into deliberately. The PR linter rejects new rules missing the default field. SMEs decide this per rule.
+
+Note on default-selected domains: whether a domain itself ships pre-selected when the GUI launches is controlled by a curated DEFAULT_SELECTED_DOMAINS const in the camerata-ai source, NOT by anything in rule TOML. Currently only Universal (*) and Agentic ship pre-selected. SMEs contributing a new stack profile or capability domain cannot promote their own domain into the default-selected set; that requires a separate, deliberate change to camerata-ai itself, and the PR linter enforces this boundary.
+
+tag values: universal (always on), stack (gated by domain selection), choice (prompts the user with options + a default).
+layer values: universal | language | library | framework (the precedence order).
+enforcement values: prose | structured | mechanical (what kind of artifact the rule emits when installed).
+
+Every rule states a default, a why it was chosen, and the alternatives considered, so a reader can disagree on the merits rather than guess at intent."""
+why = "Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors. A new file in the right folder plus this template is the whole bar."
+alternatives = [
+    "keep the schema only in CONTRIBUTING.md (drifts from code; invisible to contributors browsing the GUI)",
+    "infer the schema from existing files (works for small libraries; breaks at scale and slows new contributors)",
+]

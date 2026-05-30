@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-3"
+title = "Flat entities/<table>.rs in a dedicated entities crate"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "One file per entity under entities/. The crate depends only on sea-orm, chrono, serde, uuid — no business logic, no service code."
+why = "Matches the SeaORM layout and breaks an otherwise-cyclic dependency (mappers depend on domain + entities; infrastructure depends on mappers)."
+alternatives = [
+    "prelude re-exports (defer this until there is a reason)",
+    "entities living inside the infrastructure crate (violates the mapper layering and reintroduces the cycle)",
+]

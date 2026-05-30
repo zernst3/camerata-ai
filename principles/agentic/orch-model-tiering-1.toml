@@ -1,0 +1,19 @@
+id = "ORCH-MODEL-TIERING-1"
+title = "Model tiering — cheap for bulk, top-tier for decisions"
+tag = "choice"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Run high-volume mechanical work (applying documented rules, repetitive porting) on a cheaper model; reserve the top model for genuinely new decisions and one-way-door validation."
+why = "Top-tier judgment where it matters (data-model-shaping calls), cheap throughput on the bulk."
+alternatives = [
+    "top model for everything (higher cost, same human-escalation outcomes)",
+    "cheap model for everything (misses one-way-door misclassifications)",
+]
+
+[choice]
+prompt = "How should models be tiered?"
+options = ["tiered", "top-for-everything", "cheap-for-everything"]
+default = "tiered"

@@ -1,0 +1,14 @@
+id = "RUST-DOMAIN-4"
+title = "Errors via thiserror enums per crate"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Each layer's crate defines its own thiserror enum (DomainError, RepositoryError, ServiceError, …) with explicit From impls at boundaries. anyhow is reserved for application edges (binaries)."
+why = "Typed errors give callers compile-time knowledge of failure modes and keep each layer's failure vocabulary self-contained."
+alternatives = [
+    "a single global error enum (couples layers, no boundary discipline)",
+    "anyhow everywhere (loses typed failure information at boundaries)",
+]

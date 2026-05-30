@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-10"
+title = "Owner + audit FKs to the same parent: belongs_to on child only; no reverse has_many for audit FKs"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "When an entity has an owner FK plus audit FKs (e.g. created_by, modified_by) all pointing at the same parent, declare the reverse has_many on the parent for the OWNER only. Reverse traversal for audit FKs goes through filtered queries or an audit_log table."
+why = "Audit-direction reverse traversal is rare in practice and would balloon the parent entity file with near-identical variants. The macro's coherence rule caps find_related at one variant per pair anyway."
+alternatives = [
+    "declare every reverse has_many variant (file bloat for rare traversal needs)",
+    "drop audit FKs to plain Uuid columns (loses compile-time FK validation)",
+]

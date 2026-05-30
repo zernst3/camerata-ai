@@ -1,0 +1,14 @@
+id = "ORCH-AUTOCALLS-LEDGER-1"
+title = "Auto-calls ledger + periodic judgment review"
+tag = "stack"
+domain = "agentic"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Every self-made clear-winner call is logged (date, rule, decision, alternatives, why). Periodically (e.g. weekly) the agent surfaces the batch for human accept/modify/reject before it compounds, and can hold further autonomous runs until the batch is cleared."
+why = "Per-decision gates miss aggregate drift; many small calls can drift heavy or split into competing patterns over hundreds of choices. This is the altitude check."
+alternatives = [
+    "daily review (more granular, more interruptions)",
+    "monthly review (more accumulated drift)",
+]

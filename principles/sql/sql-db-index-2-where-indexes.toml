@@ -1,0 +1,13 @@
+id = "SQL-DB-INDEX-2"
+title = "Every WHERE-clause column has a supporting index"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "Columns used in WHERE predicates (and in ORDER BY/JOIN keys) have a supporting index. For composite filters, the most-selective column comes first in the index."
+why = "After missing FK indexes, missing WHERE-column indexes are the second-most-common source of large query slowdowns at scale."
+alternatives = [
+    "add indexes reactively after queries get slow (the slowdown surfaces in production)",
+]

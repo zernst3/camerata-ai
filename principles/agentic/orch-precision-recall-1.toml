@@ -1,0 +1,13 @@
+id = "ORCH-PRECISION-RECALL-1"
+title = "Precision over recall for high-cost false positives"
+tag = "stack"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "When a false positive is expensive (e.g. it halts an autonomous routine), tune detection for precision: strong-tier signals only. Better to miss some than to halt on a false signal."
+why = "A false-positive pause is painful (blocks progress); a false negative is usually recoverable in a later sweep. Applies to tech-debt detection, anomaly flags, anything that gates the routine."
+alternatives = [
+    "tune for recall (catch everything; tolerable only when a false positive is cheap)",
+]

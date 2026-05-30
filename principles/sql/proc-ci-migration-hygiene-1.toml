@@ -1,0 +1,13 @@
+id = "PROC-CI-MIGRATION-HYGIENE-1"
+title = "CI hygiene — enforce migration idempotency + safety at the gate"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "For SQL systems: lint every migration in CI. Require idempotency (IF NOT EXISTS), require explicit opt-in for destructive ops, and guard against migration-journal index collisions, all before the build."
+why = "Preventive enforcement catches what code review misses under pressure; migrations are append-only, so a silent skip corrupts state downstream."
+alternatives = [
+    "rely on code review to catch unsafe migrations (misses cases under pressure)",
+]

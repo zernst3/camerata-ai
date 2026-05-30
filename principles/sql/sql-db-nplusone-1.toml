@@ -1,0 +1,13 @@
+id = "SQL-DB-NPLUSONE-1"
+title = "No N+1 query patterns"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "Iterating a collection with a per-item database call is banned. Use a single batched query (or 1-2 queries with a join / eager-load), never N+1."
+why = "N+1 access patterns cause 10-100× slowdowns at scale and are invisible at small data sizes."
+alternatives = [
+    "fetch a list, then loop and fetch related rows one-by-one (the textbook N+1 footgun)",
+]

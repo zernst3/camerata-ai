@@ -1,0 +1,14 @@
+id = "RUST-ENTITIES-9"
+title = "Self-referential FKs: single belongs_to + impl Related<Entity> for Entity"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Declare only the belongs_to (with explicit from/to) and add impl Related<Entity> for Entity. Reverse traversal is done via find().filter(...). Use role-based variant naming (e.g. Inviter, not User)."
+why = "DeriveRelation cannot disambiguate a has_many pointing at the same Entity as the inverse belongs_to; both directions can't coexist for a self-relation."
+alternatives = [
+    "declare both belongs_to and has_many variants (blocked by macro semantics)",
+    "omit impl Related and force callers to spell out the join each time (worse ergonomics)",
+]

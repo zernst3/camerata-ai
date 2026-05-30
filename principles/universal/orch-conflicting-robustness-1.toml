@@ -1,0 +1,13 @@
+id = "ORCH-CONFLICTING-ROBUSTNESS-1"
+title = "Conflicting robustness is a real tradeoff, not a clear winner"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "When options are each robust against different failures (rigid constraints vs. bad data; flexibility vs. changing requirements), name both failure modes and pause to escalate the decision to a human reviewer. That is a genuine tradeoff, not a clear winner. Let the human pick which failure mode their context cares about more."
+why = "Robustness is plural; picking one dimension unilaterally silently accepts the other failure mode."
+alternatives = [
+    "treat the first robust option found as the winner (silently accepts the unaddressed failure)",
+]

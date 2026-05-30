@@ -1,0 +1,13 @@
+id = "RUST-DOMAIN-1"
+title = "Single domain crate, modules by bounded context"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "One domain crate. Bounded contexts are internal modules, not separate crates."
+why = "At small/medium scale (tens of entities), no real bounded-context seams have emerged; splitting prematurely adds cyclic-dependency friction, and un-splitting later is harder than splitting later."
+alternatives = [
+    "per-context crates from day one (premature split at this scale)",
+]

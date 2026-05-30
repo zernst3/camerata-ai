@@ -1,0 +1,13 @@
+id = "RUST-ENTITIES-1"
+title = "Use the DeriveEntityModel macro path"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Entities are defined with the DeriveEntityModel macro, not hand-rolled Entity/Column/PrimaryKey impls."
+why = "Matches code-generator output, is the most googleable shape, and avoids verbose boilerplate that offers no benefit unless you are deliberately deviating."
+alternatives = [
+    "hand-rolled Entity/Column/PrimaryKey impls (verbose; no upside unless customizing)",
+]

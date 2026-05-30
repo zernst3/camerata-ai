@@ -1,0 +1,13 @@
+id = "SQL-DB-INDEX-1"
+title = "Every foreign-key column gets an index in the same migration"
+tag = "stack"
+domain = "sql"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "When a migration adds a foreign-key column, the same migration adds an index on it."
+why = "Postgres does not auto-index FK columns. Missing FK indexes are invisible at low volume and devastating at high; no cache layer can compensate for an unindexed FK join."
+alternatives = [
+    "add FK indexes reactively, after performance degrades (the slowdown surfaces in production)",
+]

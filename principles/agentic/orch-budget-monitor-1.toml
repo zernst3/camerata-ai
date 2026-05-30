@@ -1,0 +1,22 @@
+id = "ORCH-BUDGET-MONITOR-1"
+title = "Budget self-monitoring"
+tag = "choice"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Track spend in a rolling window against a safety threshold, with per-session caps, and self-check periodically during a run. A wrapper enforces hard limits before invoking the model."
+why = "An unattended routine needs a real ceiling; per-run caps prevent runaway, the rolling cap is the operational guard. (Thresholds and caps are your numbers.)"
+alternatives = [
+    "no budget caps (acceptable only for attended, short runs)",
+]
+
+[choice]
+prompt = "How should an autonomous run cap its spend?"
+options = [
+    "rolling-window + per-session caps, enforced by a wrapper",
+    "per-session cap only",
+    "no budget caps",
+]
+default = "rolling-window + per-session caps, enforced by a wrapper"

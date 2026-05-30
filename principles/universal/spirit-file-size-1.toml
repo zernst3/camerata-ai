@@ -1,0 +1,14 @@
+id = "SPIRIT-FILE-SIZE-1"
+title = "Files are sized for human reading, not for AI write-cost"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Hand-maintained files are split at sizes a human can navigate without losing their place. AI can generate and read a 2000-line file at no cost; every human who reviews, debugs, or maintains it pays full attention price. Auto-generated files (schema dumps, generated entity files, ORM-emitted models, lockfiles) are exempt: a tool maintains them, not a person."
+why = "Pre-AI, splitting had a real writing cost (boilerplate, imports, naming) that made monolithic files a defensible tradeoff. AI removed that cost. The only remaining force keeping hand-written files small is human comprehension, so let it be the deciding axis. Generated artifacts are read tools-first, so the rule doesn't bind them."
+alternatives = [
+    "let hand-maintained files grow without a soft cap (AI extends them happily; humans bog down on review and lose orientation)",
+    "apply the cap to generated files too (forces useless splits in files no one hand-edits)",
+]

@@ -1,0 +1,23 @@
+id = "ARCH-TRUNK-SYNC-1"
+title = "Single-source trunk sync"
+tag = "choice"
+domain = "ci-cd"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Release-line fixes stay on the release branch until ship, then sync back to trunk in ONE merge-commit, not per-fix cherry-picks."
+why = "Per-fix mirroring creates hidden divergence (a fix lands on release, the cherry-pick to main is forgotten, trunk silently lacks it)."
+alternatives = [
+    "continuous cherry-pick of each fix to trunk (hidden divergence when one is forgotten)",
+    "trunk-only (no release branches)",
+]
+
+[choice]
+prompt = "How do release-line fixes get back to trunk?"
+options = [
+    "one merge-commit after the release ships",
+    "continuous cherry-pick",
+    "trunk-only (no release branch)",
+]
+default = "one merge-commit after the release ships"

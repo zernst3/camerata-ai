@@ -1,0 +1,13 @@
+id = "SPIRIT-DOC-DECISIONS-1"
+title = "Document decisions immediately"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Every decision (architectural, process, convention, even small) is written to a persistent artifact the moment it is made: a conventions file with a rule ID for code, a dated decision doc for process."
+why = "Decisions made only in conversation evaporate; agents cannot cite them and humans re-derive them. A multi-actor, multi-session system depends on durable artifacts, not memory."
+alternatives = [
+    "batching docs 'for later' (reliably causes drift and re-litigation)",
+]

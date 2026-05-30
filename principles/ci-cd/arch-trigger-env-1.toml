@@ -1,0 +1,23 @@
+id = "ARCH-TRIGGER-ENV-1"
+title = "Trigger→environment mapping with immutable prod tags"
+tag = "choice"
+domain = "ci-cd"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Map git refs to environments (push to main → dev; release branch → staging; semver tag → prod). Tags are immutable, never moved. Hotfixes branch from the broken tag."
+why = "Direct mapping reduces human error; immutable tags make a release always resolve to the same SHA (auditability/rollback)."
+alternatives = [
+    "manual environment selection on deploy",
+    "trunk-based with feature flags",
+]
+
+[choice]
+prompt = "How do changes map to deploy environments?"
+options = [
+    "git-ref → environment, immutable prod tags",
+    "manual environment selection",
+    "trunk-based with feature flags",
+]
+default = "git-ref → environment, immutable prod tags"

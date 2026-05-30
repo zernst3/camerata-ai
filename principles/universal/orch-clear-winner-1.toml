@@ -1,0 +1,14 @@
+id = "ORCH-CLEAR-WINNER-1"
+title = "The clear-winner test — decide vs. stop"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+stance = "default"
+summary = "Before stopping for a human, run the test. (a) Is there a documented convention? Apply it, cite it, continue. (b) Does a guiding principle (e.g. robustness) break the tie? Apply the winner, document it, continue. Stop only if neither resolves it."
+why = "Most language/framework choices have a canonical answer; stopping on those wastes the human's attention. The test separates textbook choices (apply) from genuine judgment calls (escalate)."
+alternatives = [
+    "stop on every multi-option choice (blocks constantly)",
+    "auto-decide everything (drifts into bad one-way-door calls)",
+]

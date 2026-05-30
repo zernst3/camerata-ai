@@ -1,0 +1,14 @@
+id = "TS-NEXT-CONSENT-GATED-1"
+title = "No client storage or third-party trackers without explicit consent"
+tag = "stack"
+domain = "ts:next"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "No client-side cookies, localStorage, sessionStorage, or third-party analytics initialize without a runtime consent check (e.g. useConsent()) gated by the category the user agreed to. Necessary-category storage is the only exception. New trackers require a Privacy Policy update and a consent-category update in the same PR."
+why = "GDPR and the ICO's equal-weight consent rules require opt-in for non-essential storage and tracking. A single tracker firing before consent is a compliance violation. Forcing the consent check at the storage / init site keeps the rule unambiguous and reviewable."
+alternatives = [
+    "initialize trackers globally and rely on opt-out (compliance violation under GDPR / ICO)",
+    "check consent at the page level (every page re-implements the check; trackers loaded in shared components silently bypass it)",
+]

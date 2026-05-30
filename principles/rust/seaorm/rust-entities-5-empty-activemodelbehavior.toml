@@ -1,0 +1,13 @@
+id = "RUST-ENTITIES-5"
+title = "Empty ActiveModelBehavior unless a hook is genuinely needed"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Each entity uses the default empty ActiveModelBehavior impl. Hooks are added deliberately, only when an entity actually needs one."
+why = "The vast majority of entities need no hooks; stubbing them in across the codebase adds noise without value."
+alternatives = [
+    "stub hook implementations on every entity (noise without function)",
+]

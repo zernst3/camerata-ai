@@ -1,0 +1,21 @@
+id = "RUST-DOMAIN-2"
+title = "Newtype IDs (every ID is a wrapper, never a bare Uuid)"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "UserId(Uuid), OrganizationId(Uuid); bare Uuid only at persistence and HTTP boundaries."
+why = "Moves wrong-ID-to-wrong-function bugs from runtime to compile time. The idea is universal; Rust enforces it via the type system."
+alternatives = [
+    "bare Uuid everywhere (no safety)",
+    "generic EntityId<T> (no runtime distinction)",
+]
+
+[[emits]]
+target = "CONVENTIONS.md"
+
+[[emits]]
+target = "aicodingrules"
+scope = "**/*.rs"

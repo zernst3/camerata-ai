@@ -1,0 +1,14 @@
+id = "TS-NEXT-UTC-DATES-1"
+title = "Render dates through a UTC-pinned helper, never directly via toLocaleString"
+tag = "stack"
+domain = "ts:next"
+layer = "framework"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "All date rendering goes through a project-level helper that pins timeZone: 'UTC'. Direct new Date(iso).toLocaleString() or .toLocaleDateString() calls in components are forbidden and lint-enforced."
+why = "Without an explicit timezone, the server renders the date in the host's timezone and the client renders it in the browser's. The mismatch causes hydration warnings or crashes and visible UI inconsistencies. Pinning UTC at the rendering boundary makes both sides agree."
+alternatives = [
+    "format dates inline at each call site (every call site can drift on timezone handling; the mismatch is invisible until the hydration warning fires)",
+    "render dates client-only via useEffect (loses SSR and shifts the rendering cost to client paint)",
+]

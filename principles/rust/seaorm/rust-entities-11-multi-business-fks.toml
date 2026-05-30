@@ -1,0 +1,15 @@
+id = "RUST-ENTITIES-11"
+title = "Two or more business FKs to the same parent: both belongs_to + role-named reverse has_many; one impl Related on the primary direction"
+tag = "stack"
+domain = "rust:seaorm"
+layer = "library"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "When an entity has multiple business FKs to the same parent (e.g. requester_id, reviewer_id), declare both belongs_to plus disambiguated reverse has_many variants (…AsRequester, …AsReviewer). Add impl Related on the principal semantic direction (the creator or initiator); secondary directions use filtered queries. The pattern generalizes to N business FKs."
+why = "Both directions get compile-time validation and self-document the roles. Uses the macro's one-impl-per-pair limit constructively."
+alternatives = [
+    "one belongs_to plus a plain column for the other role (loses FK validation)",
+    "drop the reverse has_many for one role (both directions are routinely useful for business FKs)",
+    "pick impl Related arbitrarily (the primary semantic role reads better)",
+]
