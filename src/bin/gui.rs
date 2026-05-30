@@ -1127,30 +1127,37 @@ fn app() -> Element {
                                 }
                             }
                             if *open {
-                                {
-                                    let defaults: Vec<(usize, bool)> = rows
-                                        .iter()
-                                        .map(|(i, _, _)| (*i, plist[*i].default))
-                                        .collect();
-                                    let idxs_all: Vec<usize> = rows.iter().map(|(i, _, _)| *i).collect();
-                                    let idxs_clear = idxs_all.clone();
-                                    let btn = "padding:2px 8px; font-size:0.8em; cursor:pointer;";
-                                    rsx! {
-                                        div { style: "display:flex; gap:4px; padding:2px 0 4px 10px;",
-                                            button {
-                                                style: "{btn}",
-                                                onclick: move |_| selected.with_mut(|s| { for (i, d) in &defaults { s[*i] = *d; } }),
-                                                "Defaults"
-                                            }
-                                            button {
-                                                style: "{btn}",
-                                                onclick: move |_| selected.with_mut(|s| { for i in &idxs_all { s[*i] = true; } }),
-                                                "All"
-                                            }
-                                            button {
-                                                style: "{btn}",
-                                                onclick: move |_| selected.with_mut(|s| { for i in &idxs_clear { s[*i] = false; } }),
-                                                "Clear"
+                                // Defaults / All / Clear toggle per-rule
+                                // selection, which is meaningless in the
+                                // meta-doc domains (howto, contributing) —
+                                // those rules have no checkboxes. Hide
+                                // the row there.
+                                if !is_meta_domain(domain.as_str()) {
+                                    {
+                                        let defaults: Vec<(usize, bool)> = rows
+                                            .iter()
+                                            .map(|(i, _, _)| (*i, plist[*i].default))
+                                            .collect();
+                                        let idxs_all: Vec<usize> = rows.iter().map(|(i, _, _)| *i).collect();
+                                        let idxs_clear = idxs_all.clone();
+                                        let btn = "padding:2px 8px; font-size:0.8em; cursor:pointer;";
+                                        rsx! {
+                                            div { style: "display:flex; gap:4px; padding:2px 0 4px 10px;",
+                                                button {
+                                                    style: "{btn}",
+                                                    onclick: move |_| selected.with_mut(|s| { for (i, d) in &defaults { s[*i] = *d; } }),
+                                                    "Defaults"
+                                                }
+                                                button {
+                                                    style: "{btn}",
+                                                    onclick: move |_| selected.with_mut(|s| { for i in &idxs_all { s[*i] = true; } }),
+                                                    "All"
+                                                }
+                                                button {
+                                                    style: "{btn}",
+                                                    onclick: move |_| selected.with_mut(|s| { for i in &idxs_clear { s[*i] = false; } }),
+                                                    "Clear"
+                                                }
                                             }
                                         }
                                     }
