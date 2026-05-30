@@ -41,6 +41,77 @@ cargo run -- init --stack rust --defaults     # CLI: scaffold the default Rust s
 
 The CLI also accepts `--out-domain DOMAIN=PATH` (repeatable; repeat the same domain to fan out to multiple repos) and `--json` to export your resolved decisions.
 
+## Using the CLI
+
+The CLI is a thin frontend over the same library the GUI uses. It is the right surface for CI, scripted scaffolds, and headless environments. Profile save/load, custom rules, and custom domains are GUI-only in v0.1; the CLI focuses on scaffolding the canonical library.
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `camerata list` | Print every principle in the library (id, domain, tag, title). Useful for browsing what's available. |
+| `camerata init` | Scaffold selected principles into a target directory. See the flag reference below. |
+| `camerata export` | Print the entire principle library as a JSON catalog on stdout. For piping into other tools. |
+
+### `camerata init` flags
+
+| Flag | Purpose |
+|---|---|
+| `--out PATH` | Default output directory (defaults to `.`). Unmapped domains land here. |
+| `--out-domain DOMAIN=PATH` | Per-domain routing. Repeatable; repeat the same domain to fan it out to multiple repos. e.g. `--out-domain rust=../rust-repo --out-domain sql=../db`. |
+| `--stack DOMAIN` | Include the named domain (a stack like `rust`, `ts:next`, or a capability like `sql`, `permissions`). Repeatable. Universal (`*`) and `agentic` are always included; this flag adds to them. |
+| `--defaults` | Skip all prompts and take the default option for every `choice`-tagged rule. Non-interactive mode. |
+| `--all` | Include every rule in the selected domains, not just the ones marked `default = true`. Opt in to the opinionated extras (caching strategies, auto-merge, feature-flag wiring, etc.) alongside the core defaults. |
+| `--minimal` | Drop the Universal layer entirely. Rare; mostly used when you only want stack-specific guardrails. |
+| `--json` | Also write `camerata.selections.json` next to the scaffold (a machine-readable record of your decisions). |
+| `--principles PATH` | (Top-level flag) Use a different principles directory. Useful when developing your own library locally. |
+
+### Recipes
+
+Default minimal scaffold (just Universal + Agentic, the always-on baseline):
+
+```sh
+camerata init --out ./agents --defaults
+```
+
+Rust project with default Rust rules:
+
+```sh
+camerata init --out . --stack rust --defaults
+```
+
+Full kitchen-sink Rust + SQL with the opinionated extras included:
+
+```sh
+camerata init --out . --stack rust --stack sql --defaults --all
+```
+
+Monorepo fan-out, one repo per stack:
+
+```sh
+camerata init \
+  --stack rust --stack ts:next --stack sql \
+  --out-domain rust=./backend \
+  --out-domain ts:next=./web \
+  --out-domain sql=./db \
+  --defaults
+```
+
+### CLI vs GUI in v0.1
+
+| Feature | CLI | GUI |
+|---|---|---|
+| Scaffold canonical library | ✓ | ✓ |
+| Multi-repo routing | ✓ | ✓ |
+| `default` flag honored | ✓ | ✓ |
+| `DEFAULT_SELECTED_DOMAINS` honored | ✓ | ✓ |
+| Save / Load Profile | — | ✓ |
+| Custom rules / custom domains | — | ✓ |
+| Autosave + crash recovery | — | ✓ |
+| Guided exit prompt | — | ✓ |
+
+Profile and custom-rule support on the CLI is planned for v0.2. The likely shape is a `--profile <path>` flag that loads a profile JSON written by the GUI, plus a `--save-profile <path>` flag that captures the current run's choices.
+
 ## Using the GUI
 
 The GUI ships with an in-app user guide: open `camerata-gui` and the **Camerata · how to use** section is pinned to the top of the sidebar. Click the single entry inside it ("Camerata user guide") to read the same workflow + button reference shown below, rendered in the right pane with headings and bullets.

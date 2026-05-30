@@ -6,7 +6,7 @@
 
 use camerata::emit::{self, Selection};
 use camerata::principle::{Principle, Tag};
-use camerata::{default_principles_dir, registry};
+use camerata::{default_principles_dir, is_meta_domain, registry, DEFAULT_SELECTED_DOMAINS};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
@@ -40,8 +40,9 @@ enum Command {
         /// domains use --out.
         #[arg(long = "out-domain", value_name = "DOMAIN=PATH")]
         out_domain: Vec<String>,
-        /// Domain to include: a stack ("rust") or capability ("sql",
-        /// "permissions"). Repeatable.
+        /// Domain to include in addition to the default-selected ones
+        /// (Universal "*" and "agentic" are always included). A stack
+        /// ("rust") or capability ("sql", "permissions"). Repeatable.
         #[arg(long = "stack", value_name = "DOMAIN")]
         stacks: Vec<String>,
         /// Skip all prompts and take defaults (non-interactive).
@@ -50,6 +51,12 @@ enum Command {
         /// Drop the universal layer too (it is a default, not a requirement).
         #[arg(long)]
         minimal: bool,
+        /// Include every rule in the selected domains, not just the ones
+        /// marked default = true. Use this when you want the opinionated
+        /// extras (cache strategies, auto-merge, feature-flag wiring, etc.)
+        /// alongside the core defaults.
+        #[arg(long)]
+        all: bool,
         /// Also write camerata.selections.json (your decisions, machine-readable).
         #[arg(long)]
         json: bool,
@@ -71,8 +78,9 @@ fn main() -> Result<()> {
             stacks,
             defaults,
             minimal,
+            all,
             json,
-        } => cmd_init(&principles, &out, out_domain, stacks, defaults, minimal, json),
+        } => cmd_init(&principles, &out, out_domain, stacks, defaults, minimal, all, json),
         Command::Export => {
             println!("{}", emit::catalog_json(&principles)?);
             Ok(())
@@ -103,14 +111,26 @@ fn cmd_list(principles: &[Principle]) -> Result<()> {
     Ok(())
 }
 
-/// A principle is in scope if it's universal, or its stack was selected.
-fn in_scope(p: &Principle, stacks: &[String]) -> bool {
-    match p.stack_base() {
-        None => true,
-        Some(base) => stacks.iter().any(|s| s == base),
+/// A principle is in scope when its domain is part of the curated default-
+/// selected set (Universal "*" and "agentic") OR the user listed the domain
+/// via `--stack` (matched exactly or by stack-base for nested domains like
+/// `rust:seaorm` → base `rust`). Meta-doc domains (`howto`, `contributing`)
+/// are never in scope for the CLI scaffold — they're documentation, not
+/// adopted conventions.
+fn in_scope(p: &Principle, user_domains: &[String]) -> bool {
+    if is_meta_domain(p.domain.as_str()) {
+        return false;
     }
+    if DEFAULT_SELECTED_DOMAINS.contains(&p.domain.as_str()) {
+        return true;
+    }
+    let stack_base = p.stack_base().unwrap_or(p.domain.as_str());
+    user_domains
+        .iter()
+        .any(|d| d == &p.domain || d == stack_base)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_init(
     principles: &[Principle],
     out: &Path,
@@ -118,6 +138,7 @@ fn cmd_init(
     mut stacks: Vec<String>,
     defaults: bool,
     minimal: bool,
+    include_all: bool,
     json: bool,
 ) -> Result<()> {
     // Parse per-domain output overrides ("domain=path"); repeat a domain to
@@ -151,8 +172,14 @@ fn cmd_init(
         if !in_scope(p, &stacks) {
             continue;
         }
-        // Universal is a default, not a requirement: --minimal drops it.
-        if minimal && matches!(p.tag, Tag::Universal) {
+        // Per-rule default flag gates inclusion within an in-scope domain,
+        // matching the GUI behavior. `--all` overrides to include the
+        // opinionated extras alongside the core defaults.
+        if !p.default && !include_all {
+            continue;
+        }
+        // --minimal additionally drops the universal layer.
+        if minimal && p.domain == "*" {
             continue;
         }
         let chosen = match p.tag {
