@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-12"
+title = "Icons render as inline SVG from static string constants; no runtime icon-library fetches"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Icons live in a single icons module as static SVG string constants. A single Icon component takes a name (an enum variant) and a class string, looks up the corresponding SVG, and renders it inline through the framework's raw-inner-html attribute. Sources for the SVG strings are extracted once from whichever icon set the design system uses, stripped of any framework wrapper, and stored as the raw inner SVG. Runtime fetching of an icon library, icon-font web fonts, and large icon-set crates that pull every icon into the binary are all forbidden."
+why = "Inline SVG is the smallest-bundle, fastest-first-paint approach. It has no runtime dependency, no network round-trip, no flash of invisible text, and renders correctly in the server-rendered initial paint. Extracting from an existing icon set once into static strings preserves visual identity across a port without taking on a runtime dependency on the source library. A general icon-library crate either bundles every available icon (large binary, slow load) or pulls icons at runtime (defeats the server-rendering benefit)."
+alternatives = [
+    "an icon-library crate that bundles every icon from a popular set (binary size grows by the size of the full set, most of which the application never uses)",
+    "a web font containing the icon glyphs (adds a runtime font fetch, produces a flash of invisible text on slow networks, and breaks server-rendered first paint)",
+    "an external SVG sprite sheet loaded over HTTP (adds a separate HTTP request and a cache-invalidation surface; rarely worth it for the small number of icons most applications actually use)",
+]

@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-10"
+title = "Client gates affordances on capability flags carried by responses; raw permission codes never reach the client"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Every server response that drives a gated affordance carries a structured set of named capability flags (typically a can field on the response: org.can.manage, session.can.site_admin, project.can.publish). The UI gates rendering on those flags directly. The UI MUST NOT inspect raw permission codes (string identifiers like the permission scope, or array membership checks against a permissions list on the user object), and MUST NOT re-implement permission policy on the client. The shape of the response object should physically not include a raw-codes field; if it does not exist on the wire, the client cannot read it. The server is the only place authorization decisions are computed; the client only renders the decision."
+why = "Re-implementing permission policy on the client is the classic foot-gun in role-and-permission systems: the client and server logic drift, the client allows actions the server rejects, the rejection messages look like bugs to users, and reviewers cannot tell at a glance which side is authoritative. Carrying the decision on the response (rather than the inputs to the decision) gives the client a single field to check, makes the gate self-documenting in code, and lets the server change the underlying policy without coordinated client changes. Forbidding raw codes on the wire makes the rule mechanical at the response shape rather than discretionary at the read site."
+alternatives = [
+    "carry raw permission codes on responses and inspect them on the client (the anti-pattern this rule exists to prevent; produces silent drift between client and server policy)",
+    "carry only the codes and compute the decision in a shared library used by both client and server (works if the shared library is genuinely the only path on both sides; in practice the abstraction leaks and one side drifts)",
+    "duplicate the policy logic on the client deliberately for offline use (defensible for an offline-first UI; the wrong default for a connected web product because every policy change becomes a two-place edit)",
+]

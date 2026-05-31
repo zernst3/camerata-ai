@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-6"
+title = "Async UI data goes through the resource hook; fire-and-forget work goes through spawn"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "Two patterns, two helpers. Data that the UI displays (a profile fetched from the server, a list rendered after a query) is acquired through the framework's resource hook. The hook tracks dependencies the same way an effect does: signals read inside the async closure auto-subscribe, and the resource re-fetches when those signals change. The result is a three-state value (loading, success, failure) that the UI matches on directly. Fire-and-forget work that has no UI consumer (analytics, audit log entry, send-and-forget mutation) uses the spawn primitive. The two patterns are not interchangeable: spawning from an effect for data that the UI needs to display is the legacy effect-plus-fetch pattern this rule exists to replace."
+why = "Conflating data fetching with side effects is the largest single source of state-synchronization bugs in component-based UIs. The resource hook collapses fetch, loading, error, and retry into a single helper whose value type is correct by construction. Spawn is the correct primitive when no UI state needs to reflect the work, and using it there avoids the overhead of resource tracking for something nothing reads."
+alternatives = [
+    "manual effect plus spawn plus state-setting to express what a resource expresses natively (works mechanically; every component re-implements the loading-state plumbing and bugs hide in the boilerplate)",
+    "data fetching in the component body outside any hook (runs on every render; produces request storms and inconsistent in-flight state)",
+    "a global request-cache library layered on top of resource hooks (premature for most projects; resource is sufficient for the common data-fetching shapes and a cache layer should be added only when a specific need surfaces)",
+]

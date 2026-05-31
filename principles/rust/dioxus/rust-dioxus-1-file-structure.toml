@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-1"
+title = "UI crate is organized by file role: views, components, hooks, contexts, services"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "The UI crate splits source by what a file does, not by what feature it belongs to. Page-level components (one folder per route) live under views. Reusable primitives and composites (Button, Modal, Toast and similar) live under components. Custom hooks live under hooks. Cross-tree context providers live under contexts. Server-call wrappers live under services. Pure helpers (formatting, validation, class composition) live under lib. A central Routable enum lives at the top of the crate. Page-level views compose primitives; primitives never compose views. Per-folder rules (no rsx in lib, no service calls in components, and similar) attach to the folder names, so the role of any file is obvious from its path."
+why = "A predictable file-path-to-role mapping is the foundation every other UI convention sits on. Without it, primitives leak into pages, context providers spread across the tree, and review-time questions like 'is this the right place for this code' become judgment calls each time. With it, every other rule in this stack has a clear scope, and an AI porting agent can apply per-folder rules mechanically."
+alternatives = [
+    "feature-folder structure where everything for feature X lives under feature-X (works for very large UIs with strong feature-team ownership; overkill for a single-app product and makes primitive reuse harder to discover)",
+    "flat module structure with every file at the crate root (fast to start, unmaintainable past about fifty files, and forces a re-derive of file role from naming each time the codebase is touched)",
+    "file-based routing under a single src tree (the framework does not provide file-based routing as a default; imitating it via custom build scripts adds tooling debt without buying anything)",
+]

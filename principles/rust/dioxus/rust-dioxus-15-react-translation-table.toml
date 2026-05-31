@@ -1,0 +1,39 @@
+id = "RUST-DIOXUS-15"
+title = "Maintain a canonical React-to-Dioxus translation reference; ports map row by row"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = """The project keeps a canonical reference document mapping React idioms to their Dioxus equivalents. Ports of React components consult the reference once per component and are largely a mechanical substitution. The reference covers, at minimum:
+
+- useState becomes the framework's signal hook.
+- useEffect becomes the framework's effect hook with automatic dependency tracking from signal reads.
+- useMemo becomes the framework's memo hook.
+- useRef becomes a signal or a node-ref hook depending on whether the value is reactive or a DOM handle.
+- useContext and createContext-plus-Provider become the framework's context hooks.
+- The framework's router replaces useRouter and useSearchParams.
+- Fetch and SDK-client calls become server functions that call the service layer directly.
+- JSX elements become the framework's template macro with the same prop syntax and children passed through a children prop.
+- Conditional and optional rendering use native if and if-let inside the template.
+- Iteration uses native for with a required stable key on each child.
+- Multi-branch rendering uses native match.
+- className becomes class; conditional class composition uses Rust string formatting.
+- Event handlers become move closures; callback props use the framework's EventHandler type.
+- Form props derive the framework's Props trait alongside Clone and PartialEq.
+- Notification libraries become the project's own Toast primitive.
+- Animation libraries become CSS transitions with manual interpolation only where genuinely needed.
+- Icon-library imports become the project's own Icon component (per the SVG-icons rule).
+- Date and timezone libraries become the project's UTC-pinned date helper.
+- Validation libraries become the domain newtype constructors per the forms rule.
+- Permission-array checks become capability-flag reads per the auth-flags rule.
+
+The reference itself lives in the project's documentation, not embedded in this rule. The rule's commit is that the reference exists, that it is maintained, and that contributors and porting agents are expected to consult it before authoring a component port from scratch. Cases the reference does not cover (a third-party React library with no clean equivalent) are a stop-and-route per the structural-changes rule.
+"""
+why = "Without a canonical translation map, every component port re-derives the mapping from first principles, and deviations accumulate into multiple slightly-different dialects across the codebase. With a canonical reference, the typical component ports in a fraction of the time as a mechanical row-by-row substitution. The throughput effect compounds across a hundred-component port; the consistency effect compounds across every reviewer who has to read those components later. Automated porting agents in particular benefit because the translation table can be loaded into their working context once and consulted for every component they touch."
+alternatives = [
+    "no canonical reference; each contributor and agent re-derives the mapping per port (produces dialect drift across the codebase; throughput drops because the same mapping decision happens repeatedly)",
+    "embed the translation table inside each per-pattern rule instead of one canonical document (the porting agent has to cross-reference multiple rules per component instead of reading one canonical mapping; harder to keep in sync as the framework evolves)",
+    "auto-generate the mapping via a codemod tool (possible long-term goal but no mature React-to-Dioxus codemod exists today; the manual reference is the realistic shape)",
+]

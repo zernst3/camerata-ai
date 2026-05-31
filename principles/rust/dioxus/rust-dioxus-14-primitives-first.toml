@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-14"
+title = "Build the primitive component library before porting features; views compose primitives"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "The UI phase of any new or ported product starts with primitives, not features. Build, in roughly this order: layout primitives (Page, Section, Container, Stack, Grid); form primitives (Button, IconButton, Input, Textarea, Select, Checkbox, Radio, Switch); feedback primitives (Toast, Notification, LoadingSpinner, EmptyState, ErrorBanner); navigation primitives (Header, Sidebar, Breadcrumbs, Tabs, Pagination); overlays (Modal, Drawer, Dropdown, Tooltip, Popover); display primitives (Card, Badge, StatusBadge, Avatar, Image); and the capability-gating components that wrap the auth-flag rule. Feature views (admin pages, content pages, configuration pages) only begin once the primitives are in place. The first view ported uses the primitives as-is; the primitives evolve as views surface gaps, but the baseline shape is set before any feature touches it. The primitives also set the design-system precedent (color palette, corner radii, type system); once the primitive uses the right tokens, every feature that composes the primitive inherits the design for free."
+why = "Porting features first and primitives 'as they are needed' produces a UI where every view re-implements its own Button, Modal, and Toast, each slightly different from the others. Visual drift accumulates fast and is enormously expensive to undo after the fact. Building primitives first means one round of design discussion, one set of canonical components, and every subsequent feature port becomes 'compose primitives' rather than 'reinvent primitives.' Automated porting agents in particular fail at the second pattern: an agent given a feature view will inline a hand-rolled button rather than reach for an existing primitive unless the primitive is already there and the rule says to use it."
+alternatives = [
+    "build primitives lazily as features need them (the explicitly-rejected pattern this rule exists to prevent; every feature ends up with bespoke micro-components and visual drift)",
+    "adopt a pre-existing component library wholesale (loses the project's specific design vocabulary; re-skinning every view in a foreign aesthetic is often not what the project wants)",
+    "skip primitives entirely and inline utility classes in every view (works for a ten-page product; produces unreadable churn at any larger scale and makes design system changes a codebase-wide refactor)",
+]
