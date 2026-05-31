@@ -25,7 +25,8 @@ fn main() {
     // The window is auto-hidden by the runtime after our wry handler runs;
     // a use_effect in app() re-shows it so the prompt is visible.
     let cfg = dioxus::desktop::Config::new()
-        .with_close_behaviour(dioxus::desktop::WindowCloseBehaviour::LastWindowHides);
+        .with_close_behaviour(dioxus::desktop::WindowCloseBehaviour::LastWindowHides)
+        .with_window(dioxus::desktop::WindowBuilder::new().with_title("Camerata"));
     LaunchBuilder::desktop().with_cfg(cfg).launch(app);
 }
 
@@ -568,7 +569,7 @@ fn app() -> Element {
     rsx! {
         div { style: "font-family: -apple-system, system-ui, sans-serif; padding: 12px; color:#222;",
             h2 { style: "margin:0 0 8px 0;",
-                "camerata "
+                "Camerata "
                 span { style: "font-weight:400; color:#777; font-size:0.7em;",
                     "· AI-orchestration scaffolder (preview)"
                 }

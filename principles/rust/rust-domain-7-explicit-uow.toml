@@ -1,0 +1,32 @@
+id = "RUST-DOMAIN-7"
+title = "Explicit UnitOfWork parameter on transactional repository methods"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = """
+Repository write methods that may participate in a multi-write transaction take an explicit \
+Option of UnitOfWork (a marker trait defined in the domain crate so the trait surface carries \
+no concrete ORM or database type). Infrastructure implements UnitOfWork on its concrete \
+transaction wrapper and downcasts internally via Any to access the underlying ORM transaction. \
+Services wrap multi-write operations in a closure run on the unit of work and pass Some(uow) \
+to each participating repo call.
+"""
+why = """
+Compile-time visibility of transactional posture at every call site. A call to save(item, None) \
+is textually different from save(item, Some(uow)): code review, refactoring tools, and grep all \
+catch a method silently dropping out of a transaction. The closure-based ambient-context alternative \
+(task-local storage) is cleaner in TS or Node but in Rust runs into ownership friction (the database \
+transaction is owned, not Clone) and produces silent partial-commit failures when a service forgets \
+to wrap its body. Loud failures (compile error, visible None, downcast panic) beat silent failures \
+(half-updated database rows with no error). Matches the explicit-tx convention every major Rust ORM \
+(sqlx, diesel-async, SeaORM, tokio-postgres) has converged on; future maintainers recognize the shape \
+immediately.
+"""
+alternatives = [
+    "Generic over Tx (forces every consumer to carry Tx through the type graph; bureaucratic compile-time correct, but the ceremony compounds badly)",
+    "Closure-based ambient context via task-local storage (cleaner repo trait, but silent partial-commit failures when the service body isn't wrapped; SeaORM's owned tx fights task-local's Clone requirement)",
+    "ORM type leaking into domain trait (violates the hexagonal-architecture commitment that domain has zero framework deps; tempting in TS where import-type is free, structurally wrong in Rust)",
+]

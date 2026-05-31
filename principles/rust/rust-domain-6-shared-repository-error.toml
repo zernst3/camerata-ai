@@ -1,15 +1,16 @@
 id = "RUST-DOMAIN-6"
-title = "One shared RepositoryError in the domain crate (+ ValidationError, DomainError)"
+title = "Errors are category-scoped, one shared enum per failure category at the crate boundary"
 tag = "stack"
 domain = "rust"
 layer = "language"
 enforcement = "structured"
 default = true
 stance = "default"
-summary = "A single RepositoryError enum is defined in the domain crate (NOT per-aggregate). Cross-aggregate variants: NotFound, UniqueViolation, ForeignKeyViolation, TransactionConflict, Database. Infrastructure maps driver errors into it by SQLSTATE."
-why = "Forced by the repository trait living in the domain crate; per-aggregate error enums would multiply by the number of aggregates with near-identical variants."
+summary = "Each Rust crate exposes errors organized by failure category at its public boundary, with one shared enum per category. The categories are whatever distinct failure surfaces the crate exposes; examples include persistence and IO failures, input validation, business rule violations, parsing, and networking, but the actual set depends on what the crate does. Variants within an enum enumerate the distinct failure modes for that category. Driver-specific or framework-specific errors map into the appropriate category enum at the boundary; they do not leak through the public API directly. Per-function or per-aggregate error types are not used."
+why = "Per-function or per-aggregate error proliferation forces callers to handle near-identical variants in many places, which pushes consumers toward type-erasure (Box of dyn Error, anyhow Error) and lossy error handling. Category-shaped errors stay coherent: callers exhaustive-match within a category, and the boundary between categories (persistence versus business rule versus validation versus parsing) is preserved in types rather than collapsed into a single grab-bag enum or scattered across dozens of per-call types. Mapping framework or driver errors into the category at the boundary keeps the crate's public surface stable when the underlying framework changes."
 alternatives = [
-    "per-aggregate error enums (duplication scales with aggregate count)",
-    "re-export an infrastructure error from the domain crate (boundary break)",
-    "use DomainError for both business-rule and persistence failures (conflates two distinct categories)",
+    "per-function or per-aggregate error enums (duplication scales with API surface; callers handle the same NotFound shape in twenty places, and refactoring across aggregates touches every error type)",
+    "one error enum per crate that mixes all failure categories (collapses orthogonal concerns; callers cannot distinguish a validation failure from a persistence failure without inspecting the variant string)",
+    "re-export framework or driver errors directly from the public API (boundary break; the crate inherits the framework's error semantics and its public surface breaks every time the framework upgrades)",
+    "type erasure via Box of dyn Error or anyhow Error for library APIs (eliminates exhaustive matching; consumers cannot recover specific failure modes and the type system stops helping with error handling)",
 ]
