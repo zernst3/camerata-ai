@@ -227,6 +227,34 @@ fn clear_autosave() {
     }
 }
 
+/// Check every configured output target (the default `out_dir` plus any
+/// repos used as routing overrides) for existing emit files
+/// (AGENTS.md, CONVENTIONS.md, camerata.lock). Returns the absolute paths
+/// that would be overwritten by a Generate run, so the user gets an
+/// explicit list in the confirm banner rather than discovering after the
+/// fact that hand edits were clobbered. Empty Vec means no overwrite risk.
+fn detect_existing_emit_files(out_dir: &str, repos: &[String]) -> Vec<String> {
+    use std::path::Path;
+    let mut targets: Vec<&str> = Vec::with_capacity(repos.len() + 1);
+    targets.push(out_dir);
+    for r in repos {
+        if r.as_str() != out_dir {
+            targets.push(r.as_str());
+        }
+    }
+    let mut existing = Vec::new();
+    for target in &targets {
+        for filename in &["AGENTS.md", "CONVENTIONS.md", "camerata.lock"] {
+            let path = Path::new(target).join(filename);
+            if path.exists() {
+                existing.push(path.display().to_string());
+            }
+        }
+    }
+    existing.sort();
+    existing
+}
+
 /// Build a Profile snapshot from the current GUI signal state.
 #[allow(clippy::too_many_arguments)]
 fn snapshot_profile(
@@ -846,13 +874,40 @@ fn app() -> Element {
             // before the scaffold runs. The autosave temp file is cleared
             // on successful generate from either path.
             if pending_generate() {
-                div { style: "background:#e6f3ff; border:1px solid #6aa1e2; border-radius:6px; padding:10px 12px; margin-bottom:8px;",
-                    div { style: "font-weight:600; margin-bottom:6px;",
-                        "Save your profile before generating?"
-                    }
-                    div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
-                        "Generating will write the scaffolded files into the configured output. The in-progress autosave will be cleared either way."
-                    }
+                {
+                    let existing = detect_existing_emit_files(
+                        &out_dir.read(),
+                        &repos.read(),
+                    );
+                    rsx! {
+                        div { style: "background:#e6f3ff; border:1px solid #6aa1e2; border-radius:6px; padding:10px 12px; margin-bottom:8px;",
+                            div { style: "font-weight:600; margin-bottom:6px;",
+                                "Save your profile before generating?"
+                            }
+                            div { style: "color:#444; font-size:0.9em; margin-bottom:8px;",
+                                "Generating will write the scaffolded files into the configured output. The in-progress autosave will be cleared either way."
+                            }
+                            // Overwrite warning: if existing emit files were
+                            // detected at any configured output target, list
+                            // them so the user knows exactly what is at risk.
+                            // v0.1 emit is overwrite-only; there is no merge
+                            // step that preserves hand edits. v0.2 will add
+                            // upsert (see CONTRIBUTING.md "v0.1 limitations").
+                            if !existing.is_empty() {
+                                div { style: "background:#fff3cd; border:1px solid #d4a017; border-radius:4px; padding:8px 10px; margin-bottom:8px;",
+                                    div { style: "font-weight:600; color:#8a6d00; margin-bottom:4px;",
+                                        "WARNING: existing files will be overwritten"
+                                    }
+                                    div { style: "color:#5a4a00; font-size:0.88em; margin-bottom:6px;",
+                                        "Camerata v0.1 emit is overwrite-only. Hand edits to these files, including any custom rules you added by hand outside camerata, will be lost. Cancel and back up these files first if you need to preserve manual edits."
+                                    }
+                                    ul { style: "margin:4px 0 0 18px; padding:0; font-family:monospace; font-size:0.85em; color:#5a4a00;",
+                                        for path in existing.iter() {
+                                            li { key: "{path}", "{path}" }
+                                        }
+                                    }
+                                }
+                            }
                     div { style: "display:flex; gap:8px; flex-wrap:wrap;",
                         button {
                             onclick: move |_| {
@@ -938,6 +993,8 @@ fn app() -> Element {
                             onclick: move |_| pending_generate.set(false),
                             "Cancel"
                         }
+                    }
+                }
                     }
                 }
             }

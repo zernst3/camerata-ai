@@ -223,6 +223,18 @@ Format: lowercase, hyphens for compound capability names (`api-layer`, `ci-cd`),
 
 ---
 
+## v0.1 limitations and v0.2 roadmap
+
+These are known gaps in v0.1.0 that are documented here so contributors understand what camerata does and does not commit to today, and so that future contributors do not work around the gaps in ways that conflict with planned v0.2 features.
+
+**Emit is overwrite-only.** Running `camerata generate` against a directory that already contains AGENTS.md, CONVENTIONS.md, or camerata.lock fully replaces those files. There is no merge step. The GUI's Generate-confirm banner lists the files that would be overwritten so the user can cancel and back them up first; the CLI does not yet check, though it will in a follow-up. Hand edits to the emitted files are lost on regeneration. Workaround for v0.1: keep all rule changes in the principle library (not in the emitted file) and re-run camerata to pick them up. v0.2 will add an upsert path that preserves hand-edited regions where possible.
+
+**No reverse-engineering of a profile from an existing repo.** Camerata cannot today read a target repo's AGENTS.md / CONVENTIONS.md / camerata.lock and reconstruct a Profile JSON from them. The lock file records installed IDs and content hashes, and we could in principle parse the emit files back into a profile, but two things make this nontrivial enough to defer: (1) recovering which alternative was chosen on a `tag = "choice"` rule requires text-matching the emitted body against each alternative, which is fragile to whitespace and casing changes, and (2) custom rules live in AGENTS.md under their `CUSTOM-name` headings and parsing them back into the Profile schema requires careful handling of edge cases. v0.2 will introduce a `camerata import` subcommand that performs this reconstruction with an explicit "best effort" caveat.
+
+**Alternatives have no stable IDs.** The `alternatives` array on each principle is a list of free-text strings today. There is no way to refer to a specific alternative by ID in a commit message, a PR description, or a profile JSON. This is intentional for v0.1: alternatives are architect-only (not emitted), and the consumer of a stable alternative ID does not yet exist. v0.2 will likely add IDs, in a format chosen alongside the reverse-engineering import feature so the two designs reinforce each other. **Until that lands, do not invent your own ID conventions in the alternatives array** (no `"ALT-1: text..."` prefixes, no inline tables with custom `id` fields). New rules should keep the alternatives array as plain strings exactly as the existing rules do.
+
+---
+
 ## Working with an AI agent on a rule batch
 
 When an AI agent (a Claude Code session, an automated PR bot, or any other coding agent) is generating multiple rules in a batch, the agent should:
