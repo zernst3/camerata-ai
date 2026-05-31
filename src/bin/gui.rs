@@ -300,7 +300,7 @@ fn app() -> Element {
     //   2. Capability domains (sql, ui, permissions, ...) — alphabetical
     //   3. Stack profiles — grouped by stack_base so a language and its
     //      nested library/framework domains cluster (rust + rust:dioxus +
-    //      rust:seaorm together; js + js:next together)
+    //      rust:seaorm together; javascript + javascript:next together)
     //
     // Within a stack family, the layer order (Language < Library <
     // Framework) determines internal order so a language-layer profile
@@ -427,6 +427,13 @@ fn app() -> Element {
     // True while the "add custom domain" modal is open.
     let mut adding_domain = use_signal(|| false);
     let mut new_domain_name = use_signal(String::new);
+
+    // Free-text filter applied to the left-column domain list. Matches
+    // case-insensitively against both the rendered domain label and the
+    // raw domain identifier, so the user can search for "rust" and
+    // surface rust, rust:dioxus, rust:seaorm, etc. Empty string shows
+    // every domain (the default behavior before the search bar existed).
+    let mut domain_search = use_signal(String::new);
 
     // Recovery state: on launch, check the autosave path. If a profile exists
     // there, hold it in pending_recovery and surface the recovery banner.
@@ -1244,7 +1251,29 @@ fn app() -> Element {
                         span { style: "margin-left:auto;", "{selected_count} selected" }
                     }
 
-                    for (domain , open , rows) in groups.iter() {
+                    // Domain search: free-text filter over the domain list.
+                    // Empty string matches everything (default). Matches the
+                    // domain label AND the raw domain identifier so users
+                    // can find "rust:dioxus" by typing either "rust" or
+                    // "dioxus".
+                    div { style: "margin-bottom:8px;",
+                        input {
+                            r#type: "text",
+                            placeholder: "Search domains...",
+                            value: "{domain_search}",
+                            oninput: move |e| domain_search.set(e.value()),
+                            style: "width:100%; padding:6px 8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:0.9em;",
+                        }
+                    }
+
+                    for (domain , open , rows) in groups.iter().filter(|(d, _, _)| {
+                        let q = domain_search.read().trim().to_lowercase();
+                        if q.is_empty() {
+                            return true;
+                        }
+                        domain_label(d).to_lowercase().contains(&q)
+                            || d.to_lowercase().contains(&q)
+                    }) {
                         div { style: "margin-bottom:4px;",
                             div { style: "display:flex; align-items:center; gap:6px; background:#f3f3f3; border:1px solid #ddd; border-radius:4px; padding:6px;",
                                 // Domain-level checkbox. Hidden for meta-doc

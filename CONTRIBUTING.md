@@ -32,7 +32,7 @@ Every TOML file under `principles/<domain>/` must satisfy the schema in [`src/pr
 | `id` | string | `DOMAIN-CONCEPT-N` format, uppercase, unique across the entire library. |
 | `title` | string | One-sentence statement of the commit. No semicolons or multi-clause titles. |
 | `tag` | enum | `universal`, `stack`, or `choice`. |
-| `domain` | string | `*` for universal rules; otherwise a capability (`sql`, `permissions`, `ui`) or stack profile (`rust`, `rust:dioxus`, `js:next`). |
+| `domain` | string | `*` for universal rules; otherwise a capability (`sql`, `permissions`, `ui`) or stack profile (`rust`, `rust:dioxus`, `javascript:next`). Use the full name, not an abbreviation (see style rule on domain naming). |
 | `layer` | enum | `universal`, `language`, `library`, or `framework`. |
 | `enforcement` | enum | `prose`, `structured`, or `mechanical`. See the enforcement-levels section below. |
 | `default` | bool | Required. Whether the rule auto-checks when its domain is selected. See the default-flag section below. |
@@ -208,6 +208,18 @@ Claiming `mechanical` without committing to provide the mechanism is a hollow cl
 ### 11. Domain-selection metadata is maintainer-only
 
 The list of domains that ship pre-selected when the GUI launches is the `DEFAULT_SELECTED_DOMAINS` const in [`src/lib.rs`](src/lib.rs). Currently only `*` (Universal) and `agentic` ship pre-selected. **A PR contributing a new rule, capability domain, or stack profile must not modify this const.** Promoting a domain into the default-selected set is a maintainer-only decision; the PR linter rejects any PR that modifies the relevant lines without an explicit maintainer override.
+
+### 12. Domain names use the canonical full form of language and framework names
+
+A domain name (capability or stack profile) appears on every camerata surface: the AGENTS.md and CONVENTIONS.md a consumer agent reads, the search bar an architect types into, the file path in the `principles/` tree, and the citation a code reviewer pastes into a PR. The name must read clearly on every surface without inside knowledge.
+
+For language and framework names specifically, use the canonical full form. Write `javascript`, not `js`. Write `typescript`, not `ts`. Write `python`, not `py`. Stack profiles compose with `:` between the base and the specialization: `javascript:next`, not `js:next`.
+
+Widely-established shorthand for capability domains is acceptable when the shorthand IS the canonical term in the field. `api-layer`, `ci-cd`, `iac`, `sql`, `ui` are fine because the abbreviation reads as a stable, unambiguous term. Language and framework names do not have this property: "JavaScript" reads naturally as the language; "JS" reads as shorthand that a reader has to decode.
+
+Why: domain names age into infrastructure. A new contributor reading `js:next` has to know "js" means JavaScript and "next" means Next.js; reading `javascript:next` they do not. Camerata is a public library; the names are public surface. The four characters saved by abbreviating language names once at curation time cost clarity downstream forever.
+
+Format: lowercase, hyphens for compound capability names (`api-layer`, `ci-cd`), colon (`:`) as the stack-profile separator. No underscores or camelCase. The rule ID prefix follows the domain in uppercase (`JAVASCRIPT-NEXT-...`, not `JS-NEXT-...`); if you rename a domain, the IDs of rules in it rename to match.
 
 ---
 

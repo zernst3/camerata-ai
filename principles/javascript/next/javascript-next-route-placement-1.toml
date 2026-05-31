@@ -1,7 +1,7 @@
-id = "JS-NEXT-ROUTE-PLACEMENT-1"
+id = "JAVASCRIPT-NEXT-ROUTE-PLACEMENT-1"
 title = "App Router pages live under the gated route group, not at the top level"
 tag = "stack"
-domain = "js:next"
+domain = "javascript:next"
 layer = "framework"
 enforcement = "structured"
 default = true

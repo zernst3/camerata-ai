@@ -1,7 +1,7 @@
-id = "JS-NEXT-DUAL-API-1"
+id = "JAVASCRIPT-NEXT-DUAL-API-1"
 title = "Two sanctioned API helpers: client vs server-only"
 tag = "stack"
-domain = "js:next"
+domain = "javascript:next"
 layer = "framework"
 enforcement = "mechanical"
 default = true
