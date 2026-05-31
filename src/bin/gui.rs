@@ -1091,6 +1091,14 @@ fn app() -> Element {
                                         if let Some(&i) = id_to_idx.get(id) { new_selected[i] = true; }
                                     }
                                     selected.set(new_selected);
+                                    // Restore the active domain set too. Without
+                                    // this, per-rule selections re-anchor against
+                                    // stale/empty domains and the UI shows the
+                                    // wrong active state. (Was missed at the time
+                                    // selected_domains was added to the Profile
+                                    // struct.) Convert Vec<String> from JSON into
+                                    // the HashSet the signal holds.
+                                    selected_domains.set(prof.selected_domains.iter().cloned().collect());
                                     let mut new_chosen: Vec<Option<String>> = vec![None; lib.len()];
                                     for (id, v) in &prof.chosen {
                                         if let Some(&i) = id_to_idx.get(id) { new_chosen[i] = Some(v.clone()); }
