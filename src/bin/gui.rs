@@ -2061,6 +2061,7 @@ fn app() -> Element {
                         div {
                             h3 { style: "margin:0;", "{plist[i].title}" }
                             div { style: "color:#999; font-family:monospace; font-size:0.85em; margin-bottom:6px;", "{plist[i].id}" }
+                            div { style: "margin-top:10px; font-weight:600;", "Summary:" }
                             for (k , block) in parse_markdown_lite(&plist[i].summary).into_iter().enumerate() {
                                 if let Block::H1(t) = &block {
                                     h3 { key: "b-{k}", style: "margin:14px 0 4px 0;", "{t}" }
@@ -2090,7 +2091,7 @@ fn app() -> Element {
                                     button {
                                         style: opt_style(is_def),
                                         onclick: move |_| chosen.with_mut(|c| c[i] = None),
-                                        "Adopt as written (default)"
+                                        "Adopt summary as rule (default)"
                                     }
                                 }
                             }

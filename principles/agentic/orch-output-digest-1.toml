@@ -6,7 +6,7 @@ layer = "universal"
 enforcement = "prose"
 default = true
 stance = "default"
-summary = "Autonomous routines produce local artifacts (commits, state files) and write to a shared inbox; a single daily consolidator ranks all routines' output by priority and sends one digest, rather than each routine pinging directly. Critical items can break through immediately."
+summary = "Autonomous routines produce local artifacts (commits, state files) and write to a shared inbox. A single daily consolidator ranks all routines' output by priority and sends one digest, rather than each routine pinging directly. Critical items break through this cadence and notify immediately."
 why = "Signal-to-noise: one clean ranked digest is read; N direct pings get muted. A fail-safe (alert if the consolidator hasn't run in over N hours) catches silent failure of the digest itself."
 alternatives = [
     "per-routine direct notifications (noisier)",

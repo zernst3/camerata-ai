@@ -1,7 +1,7 @@
 id = "ORCH-CONFLICTING-ROBUSTNESS-1"
 title = "Conflicting robustness is a real tradeoff, not a clear winner"
-tag = "universal"
-domain = "*"
+tag = "stack"
+domain = "agentic"
 layer = "universal"
 enforcement = "prose"
 default = true

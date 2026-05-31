@@ -6,9 +6,10 @@ layer = "universal"
 enforcement = "structured"
 default = true
 stance = "default"
-summary = "Every self-made clear-winner call is logged (date, rule, decision, alternatives, why). Periodically (e.g. weekly) the agent surfaces the batch for human accept/modify/reject before it compounds, and can hold further autonomous runs until the batch is cleared."
+summary = "Every self-made clear-winner call is logged with date, rule, decision, alternatives, and why. The agent surfaces the accumulated batch for human accept/modify/reject on a weekly cadence. Further autonomous runs hold until the batch is cleared, so drift cannot compound past the weekly review window."
 why = "Per-decision gates miss aggregate drift; many small calls can drift heavy or split into competing patterns over hundreds of choices. This is the altitude check."
 alternatives = [
     "daily review (more granular, more interruptions)",
     "monthly review (more accumulated drift)",
+    "weekly review without holding autonomous runs (faster forward progress; accepts that drift can compound past a missed review window)",
 ]

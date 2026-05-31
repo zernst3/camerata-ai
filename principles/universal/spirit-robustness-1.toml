@@ -6,7 +6,7 @@ layer = "universal"
 enforcement = "prose"
 default = true
 stance = "default"
-summary = "When two correct implementations differ, robustness (not verbosity) is the deciding axis. Choose the more explicit version by default, since AI bears the boilerplate cost and explicitness gives future AI more context to debug and extend. When the more robust option is also more complex (not just more explicit), name the specific failure mode the complexity is buying you protection against. Don't harden throwaway, internal, or fully-encapsulated code where nothing is at stake."
+summary = "When two correct implementations differ, robustness (not verbosity) is the deciding axis. Choose the more explicit version. AI bears the boilerplate cost, and explicitness gives future AI more context to debug and extend. When the more robust option is also more complex (not just more explicit), name the specific failure mode the complexity is buying you protection against. Do not harden throwaway, internal, or fully-encapsulated code where nothing is at stake."
 why = "Two-part calculus. (1) Explicitness is near-free under AI because the AI writes the boilerplate, so the pre-AI tradeoff (terseness to cut maintenance tax) inverts and the more explicit version usually wins. (2) Complexity is not free. Hardening against an unnamed threat wastes attention and creates false complexity. Prefer explicit by default; justify complex by a named threat."
 alternatives = [
     "terseness-to-cut-maintenance-tax (the pre-AI default; the calculus inverts when AI writes the code)",

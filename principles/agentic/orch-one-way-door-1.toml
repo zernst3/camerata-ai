@@ -1,7 +1,7 @@
 id = "ORCH-ONE-WAY-DOOR-1"
 title = "One-way-door routing — blast radius gates autonomy"
-tag = "universal"
-domain = "*"
+tag = "stack"
+domain = "agentic"
 layer = "universal"
 enforcement = "prose"
 default = true

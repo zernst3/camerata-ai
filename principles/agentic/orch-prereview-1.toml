@@ -1,0 +1,24 @@
+id = "ORCH-PREREVIEW-1"
+title = "Every change carries an AI reviewer's verdict into the human review queue"
+tag = "choice"
+domain = "agentic"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "Code changes authored by autonomous agents pass through an AI review step. A reviewer agent reads the diff against the project's codified architectural commitments and either approves the change, requests specific changes, or escalates the change as out of scope. The human review queue contains only changes the reviewer agent has cleared or has explicitly flagged for human attention. The reviewer step is wired into the change pipeline (a pre-merge hook, a CI job, a bot on the pull request, or equivalent) such that the change cannot reach the human merge gate without an approval status from the reviewer agent."
+why = "Human reviewers are the scarcest resource in any AI-orchestrated workflow; if every routine output reaches them raw, the queue saturates and review quality drops. An AI reviewer reading against the codified commitments catches the common drift cases cheaply, so the human review pool sees a sharper, smaller queue. The review agent also acts as a forcing function on the codified commitments themselves: commitments that cannot be checked from the diff alone get surfaced and rewritten upstream, which strengthens the commitment library over time."
+alternatives = [
+    "human-only review (works at small scale, saturates the human review pool at AI-orchestrated throughput)",
+    "AI review replaces the human merge gate entirely (cuts the human bottleneck but cedes the final architectural call to a system that cannot be held accountable for the call)",
+    "no pre-review, batch human review on a fixed cadence (queue grows faster than batches clear, lossy at scale)",
+]
+
+[choice]
+prompt = "How should AI-authored changes flow toward the human review gate?"
+options = [
+    "AI pre-review then human review",
+    "human-only review",
+    "AI review replaces human review",
+]
+default = "AI pre-review then human review"

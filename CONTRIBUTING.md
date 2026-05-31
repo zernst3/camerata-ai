@@ -8,7 +8,7 @@ The PR linter at [`.github/workflows/lint-principles.yml`](.github/workflows/lin
 
 ## What a rule is
 
-A camerata canonical rule is a single architectural, process, or convention **commit** that a project has chosen to adopt. It states the choice, gives the reasoning, and lists the alternatives the team considered before choosing. The rule is what the downstream AI coding agent reads as instruction.
+A camerata canonical rule is a single architectural, process, or convention **commit** that a project has chosen to adopt. It states the choice, gives the reasoning, and lists the alternatives the team considered before choosing. The rule's `summary` is what the downstream AI coding agent reads as instruction at code-author time; the rest of the rule is curation-time scaffolding for the architect (see *Field audiences* below).
 
 A rule is **not** a tutorial, a how-to, a code-style note, a piece of project-specific documentation, or a survey of a topic. Rules at those layers belong elsewhere (a code-style guide, a README, a wiki). camerata sits at the architectural-commitment layer — decisions where multiple defensible options exist and the project has picked one.
 
@@ -36,13 +36,45 @@ Every TOML file under `principles/<domain>/` must satisfy the schema in [`src/pr
 | `layer` | enum | `universal`, `language`, `library`, or `framework`. |
 | `enforcement` | enum | `prose`, `structured`, or `mechanical`. See the enforcement-levels section below. |
 | `default` | bool | Required. Whether the rule auto-checks when its domain is selected. See the default-flag section below. |
-| `summary` | string | The rule's body. Plain prose, no markdown formatting, no code blocks. |
-| `why` | string | The reasoning behind the commit. Answers *why*, not *what*. |
-| `alternatives` | array of strings | At least one entry. Real positions, not strawmen. |
+| `summary` | string | The rule's directive. Emitted to AGENTS.md or CONVENTIONS.md. Read by the consumer agent at code-author time. Plain prose, no markdown formatting, no code blocks. |
+| `why` | string | The reasoning behind the commit. **Architect-only; not emitted.** Answers *why*, not *what*. |
+| `alternatives` | array of strings | At least one entry. **Architect-only; not emitted.** Real positions, not strawmen. |
 
-Optional: `stance` (used at curation time, not emitted), `emits` (declarative routing override), `choice` (required when `tag = "choice"`).
+Optional: `stance` (architect-only; used at curation time, not emitted), `emits` (declarative routing override), `choice` (required when `tag = "choice"`; architect-only).
 
 The linter rejects schema violations on every PR. It also runs three content checks: id format, id uniqueness across the library, and a no-backticks check on title, summary, why, and alternatives.
+
+---
+
+## Field audiences
+
+Camerata rules serve two distinct audiences with opposite needs. Every field below is designed for one audience or the other. Writing a field for the wrong audience is the most common precision error.
+
+**Architect-facing fields** are read by the human curator or by an AI agent operating in curation mode. They live in the source TOML, render in the GUI's review pane and the CLI prompts, and inform the architect's decision about whether and how to adopt the rule. They never reach the consumer agent.
+
+**Consumer-facing fields** are read by the AI coding agent at code-author time, from the emitted AGENTS.md or CONVENTIONS.md file in a project's working directory. The consumer agent does not see the source TOML, the alternatives, the why, the stance, the tag, or the choice block. It sees only what is rendered to the emit file.
+
+The two audiences have opposite needs. The architect benefits from rich context: trade-offs, reasoning, alternatives, conditional applicability. The consumer agent needs strict, unambiguous, deterministic instruction: one directive, no interpretation surface, no opt-out paths.
+
+| Field | Audience | Spirit | Voice |
+|---|---|---|---|
+| `id` | both | Stable identity citable in PR comments. | `DOMAIN-CONCEPT-N`, uppercase. |
+| `title` | both | Single-commit headline of the directive. | Property-shaped, no semicolons, no multi-clause "and." |
+| `tag` | architect | Classifies how the rule applies (universal / stack / choice). Drives selection UI. | Enum value. |
+| `domain` | architect | Scope of applicability. Drives routing to per-domain output files. | String matching a domain or capability identifier. |
+| `layer` | architect | Position in the architectural stack; drives emit ordering (universal first, framework last). | Enum value. |
+| `enforcement` | architect | How the rule is verified (prose / structured / mechanical). Drives default emit target file. | Enum value. |
+| `default` | architect | Whether projects adopting this domain ship the rule by default. | Bool. |
+| `summary` | **consumer** | The default directive emitted to the consumer agent. Active as-written when the architect adopts the rule as-is. On `tag = "choice"` rules where the architect picks a non-default option, the selected alternative replaces the summary in the emit; the summary is then NOT emitted. | Single clear directive. Plain prose. No hedging, no opt-out paths, no "or you might" clauses. Property-shaped (per rule #7). |
+| `why` | architect | Reasoning for the rule's existence, so a curator or reviewer can decide if the rule still applies as conditions change. | Explains why, does not restate what (rule #3). Does not introduce opt-out paths (rule #4). |
+| `alternatives` | architect at curation time; **consumer at emit time if selected** | Real positions some team has defended instead of the rule's stance. Informs the architect's selection decision. When the architect picks one, the alternative's text replaces the summary in the emit and becomes the consumer agent's directive for the rest of the project's lifetime. | Two or three substantive entries, each with a one-line tradeoff parenthetical (rule #5). Each alternative must work as both architect-facing context AND a standalone consumer-facing directive, because selection promotes it to the emitted rule. |
+| `stance` | architect | Author-side metadata about authority level (default / recommended / opinionated). Used during curation. | Enum value. |
+| `emits` | architect | Optional declarative routing override that pins a rule to a specific output file or scope. | TOML inline table; explicit per-output entries. |
+| `[choice]` block | architect | Required when `tag = "choice"`. Defines the prompt and the option list the architect picks from at curation time. The chosen option's text replaces the default summary in the emit. | TOML table with `prompt`, `options`, `default`. |
+
+**The only fields the consumer agent ever sees: `id`, `title`, and the active directive.** The active directive is the `summary` by default. On `tag = "choice"` rules where the architect picked a non-default option, the active directive is the selected alternative's text and the summary is NOT emitted. Every other field is curation-time scaffolding the consumer never reads.
+
+When authoring a rule (human or AI), the precision discipline is: ask "who reads this field?" before writing each one. If the answer is the architect, rich context is welcome. If the answer is the consumer agent, the field must be a single deterministic directive.
 
 ---
 
@@ -56,30 +88,46 @@ If a rule needs to reference a specific function name, type name, or framework A
 
 **No backticks anywhere in content.** The linter rejects them. If a backtick appears, rewrite the phrase in prose.
 
-### 2. No em-dashes or en-dashes
-
-Use commas, colons, periods, parentheses, or restructured sentences instead. Hyphens in compound words (`single-page application`, `state-of-the-art`) are fine; only true em-dashes (`—`) and en-dashes (`–`) are banned. The linter does not enforce this today but is planned to.
-
-### 3. Tight, single-commit titles
+### 2. Tight, single-commit titles
 
 The title is a short statement of the commit. Avoid semicolons. Avoid multi-clause titles connected by "and." A title that reads as two commits should be two rules.
 
 Good: `Repositories return domain types, never persistence representations`.
 Less good: `Repositories return domain types; mappers handle the translation; persistence library upgrades stay scoped`.
 
-### 4. The `why` answers *why*, not *what*
+### 3. The `why` is architect-facing only; it is not emitted
 
-A common failure mode is restating the rule in the why field. The why exists so the downstream agent can apply judgment at edge cases: the agent knows the rule, and the why tells it the rule's purpose so it can extrapolate when the rule does not cleanly apply. If the why is just a longer version of the summary, rewrite it.
+The `why` field is read by the human curator and by an AI agent operating in curation mode. It is not emitted to AGENTS.md or CONVENTIONS.md and is never seen by the consumer agent at code-author time.
 
-Good: `Per-request validation collapses three failure modes into one error path and lets the request handler trust the types it receives.`
-Less good: `The rule says validate at the boundary because we want to validate at the boundary.`
+The spirit of `why` is to explain why the rule was chosen, so a curator or reviewer can decide whether the rule still applies as conditions change. A good `why` answers "what would have to be true about this project for this rule to be the right commitment?" It does not restate what the rule says (that is the summary's job), and it does not introduce opt-out paths or conditional execution rules (if those are load-bearing for the rule's application, they belong in the summary as scope clauses per rule #4).
 
-### 5. Alternatives are real, not strawmen
+Good: "Per-request validation collapses three failure modes into one error path and lets the request handler trust the types it receives."
+Less good: "The rule says validate at the boundary because we want to validate at the boundary."
+
+If a piece of reasoning is load-bearing for the consumer agent's execution (e.g. "does not apply to documentation-only changes"), it is directive content. Move it into the summary as a scope clause; do not rely on the why to communicate it, because the consumer agent will never see it.
+
+### 4. Summaries are directives; trade-off discussion belongs in alternatives
+
+The `summary` field is the only load-bearing field the consumer agent ever reads (alongside `title` and `id`, which are short). It must read as a single clear directive: what the agent should do, full stop. Trade-off discussions, opt-out paths, conditional alternatives, and per-project variations all belong in architect-only fields, never in the summary.
+
+A summary that describes both "the default" and "the conditions under which a project might opt out of the default" leaves the consumer agent ambiguous about which path to take at runtime. The architect chooses the path at curation time through the GUI or the CLI choice prompt; the consumer agent reads only the chosen path's directive. Mixing the two collapses the curation-time audience and the runtime audience into one ambiguous surface, and the consumer agent cannot tell which instruction is the active one.
+
+**How "the chosen path" actually emits:** when the architect adopts the rule as written, the summary is emitted to AGENTS.md or CONVENTIONS.md as the directive. When the architect picks one of the `alternatives` instead (on `tag = "choice"` rules or via the GUI's per-rule alternative buttons), that alternative's text is emitted *in place of* the summary; the summary is not emitted at all. The consumer agent always sees exactly one directive per rule. The summary is the default; an alternative replaces it when selected. This same discipline therefore applies to alternatives: each one must read as a single clear directive on its own, because selection promotes it to the consumer agent's instruction (see rule #5).
+
+Practical test: read the summary out loud as instructions to a junior engineer with no other context. If the junior asks "wait, do I do X or Y?" the summary is hedged. Rewrite it as a single directive and move the trade-off into `alternatives`.
+
+See the *Field audiences* section above for the full per-field audience and spirit reference.
+
+### 5. Alternatives are real, not strawmen; and each one must work as a directive on its own
 
 Every rule's `alternatives` list should describe positions some real team has defended. If the listed alternatives are obviously wrong (caricatures, anti-patterns, or "do nothing"), the rule reads as overclaim. Two or three substantive alternatives are better than one obvious strawman.
 
 Good: `single-page application with no server-rendered initial paint (wins on architectural simplicity; loses indexability on every public route)`.
 Less good: `do not have a website (loses all users)`.
+
+**Alternatives are dual-purpose.** At curation time they are architect-facing context: they show the human (or AI agent) picking the rule what other defensible positions exist, so the selection decision is informed. At emit time, if the architect picks one of them, that alternative's text is emitted to AGENTS.md or CONVENTIONS.md *in place of* the summary; the consumer agent then sees the alternative as the rule's directive, and the summary is not emitted at all.
+
+This means each alternative must be authored to satisfy both audiences. The leading clause should read as a directive the consumer agent can act on (same standard as the summary, per rule #4); the parenthetical tradeoff is architect context that travels along with the directive when emitted.
 
 ### 6. No cross-domain references; cross-rule references discouraged
 

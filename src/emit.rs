@@ -82,28 +82,26 @@ fn default_target(p: &Principle) -> &'static str {
 /// Render one principle as a markdown rule block (optionally scoped to a glob).
 ///
 /// The emitted block represents the project's *adopted* position on this
-/// principle, not the buffet of options that produced it. The rule body is
-/// either the default summary (when `sel.chosen` is None) or the chosen
-/// alternative text (when `sel.chosen` is Some). The rule's `alternatives`
-/// list is deliberately NOT emitted: alternatives are GUI-time decision
-/// support for the human picking the rule, and including them in the
-/// downstream agent's input would invite the agent to second-guess the
-/// commit the project has already made.
+/// principle, stated as a single directive the consumer agent follows at
+/// code-author time. The rule body is either the default summary (when
+/// `sel.chosen` is None) or the chosen alternative text (when `sel.chosen`
+/// is Some).
+///
+/// Architect-only fields are deliberately NOT emitted: `alternatives`,
+/// `why`, `stance`, `tag`, and the `[choice]` block. Each of those exists
+/// to support the architect at curation time (picking which rule to adopt,
+/// reviewing rules in PRs, understanding the rule's reasoning), and
+/// including them in the consumer agent's input would introduce
+/// interpretation surfaces that compete with the directive itself. The
+/// consumer agent must see one unambiguous instruction; the emit is tuned
+/// for that determinism, not for transparency to a human reading the
+/// generated file.
 pub fn render(sel: &Selection, scope: Option<&str>) -> String {
     let p = sel.principle;
     let mut s = String::new();
-    // Stance is intentionally NOT emitted. It is author-side metadata about
-    // the rule's authority level (default / recommended / opinionated) used
-    // during curation; once the project has adopted the rule, the stance
-    // label becomes ambiguous (a "default-stance" rule with a non-default
-    // alternative chosen reads as a contradiction) and adds bytes the
-    // consuming AI does not need.
     s.push_str(&format!("### {} — {}\n", p.id, p.title));
     let body = sel.chosen.as_deref().unwrap_or(p.summary.as_str());
     s.push_str(&format!("{body}\n"));
-    if let Some(why) = &p.why {
-        s.push_str(&format!("\n_Why:_ {why}\n"));
-    }
     if let Some(scope) = scope {
         s.push_str(&format!("\n_Applies to:_ `{scope}`\n"));
     }

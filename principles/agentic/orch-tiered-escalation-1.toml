@@ -6,7 +6,7 @@ layer = "universal"
 enforcement = "prose"
 default = true
 stance = "default"
-summary = "Most flagged items get soft-flagged (logged, routine continues on other work). Hard-pause (halt until a human clears it) only for genuinely blocking categories: sensitive 'hard-guard' areas (auth, payments, infra, CI) or when the review queue overflows a threshold."
+summary = "Flagged items are soft-flagged (logged, routine continues on other work). Hard-pause (halt until a human clears it) applies only to sensitive hard-guard areas (auth, payments, infra, CI) and to overflow conditions when the review queue passes a threshold."
 why = "Routine work should flow; reserve the halt for decisions that truly block forward progress or that accumulate into a backlog."
 alternatives = [
     "hard-pause on everything (constant halts)",

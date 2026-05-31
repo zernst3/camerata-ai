@@ -1,0 +1,15 @@
+id = "ORCH-CONFORMANCE-1"
+title = "Codified architectural commitments are enforced gates, not advisory documents"
+tag = "stack"
+domain = "agentic"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+stance = "default"
+summary = "The architectural commitments the project codifies for its autonomous agents are enforced as gates on changes, not held as advisory documents. A deterministic check (a lint rule, a type-system constraint, an AST scan, an AI reviewer reading against the rules, or a combination of those) is wired into the change pipeline. A change that violates a commitment is rejected, escalated, or carries an explicit waiver naming the commitment, the violation, and the reviewer who waived it. Waivers are recorded in a durable log so periodic human review can sweep them and decide whether the commitment needs refinement."
+why = "A commitment that nobody checks degrades into a commitment nobody respects. The reason architectural commitments get codified upstream of the agent is to constrain the autonomous output downstream; that constraint requires a checking step, or the codification adds no signal beyond a verbal preference the agent may or may not respect on any given run. The waiver mechanism is the relief valve: real edge cases get acknowledged and recorded, not silently violated, so the rule library learns over time which commitments needed refinement and which held up."
+alternatives = [
+    "commitments are advisory, reviewers cite them ad hoc when they happen to notice violations (works at small human-review scale, degrades at AI throughput as ad hoc citations become inconsistent and selective)",
+    "commitments are mechanically enforced with no waiver mechanism (overrigid, pushes legitimate edge cases into rule-rewriting cycles or silent bypasses outside the recorded path)",
+    "commitments live only in the agent's prompt context with no separate check (the rules drift between runs because nothing verifies adherence after the agent's turn ends)",
+]
