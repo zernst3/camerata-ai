@@ -87,7 +87,26 @@ A rule must stand on its own without referencing rules in other domains. A `rust
 
 Cross-rule references *within* the same domain are tolerated but discouraged. If a rule needs to invoke a concept from another rule in the same domain, restate the concept inline rather than citing the ID. The rule should read naturally if read in isolation.
 
-### 7. No project-specific content
+### 7. Rules describe properties, not procedures
+
+A rule states what the architecture or codebase **should look like**, not what a team or agent **should do** or in what order. A rule that reads as a numbered build plan, a porting sequence, a phased rollout, or a step-by-step procedure is describing a task, not a principle, and belongs in project documentation (a README, a runbook, a planning doc) rather than in camerata.
+
+The diagnostic test: take the verbs in the rule's summary and ask whether they describe a static property or a sequence of actions.
+
+- Properties: "is," "has," "lives in," "composes," "carries," "uses," "returns."
+- Procedures: "build," "first," "then," "before," "consult," "in this order," "in this phase."
+
+A rule whose summary leans on the second set of verbs is almost always task-shaped. The architectural principle hiding inside it (if there is one) is what should be extracted, restated as a property, and shipped; the procedural wrapper should be discarded.
+
+Concrete example:
+- **Task-shaped (wrong):** "Build the primitive component library first, then port features. Build primitives in this order: layout, forms, feedback, navigation, overlays, display."
+- **Property-shaped (right):** "Common UI elements have one canonical implementation in a primitives layer; views compose primitives rather than reinventing them."
+
+The two describe the same architectural intent, but only the second one survives the test of "would this rule make sense to a project that is not currently in the middle of building primitives?" The first reads as a build plan; the second as an invariant the codebase always satisfies.
+
+If a rule cannot be restated as a property without losing its substance, it is fundamentally a task description and does not belong in camerata.
+
+### 8. No project-specific content
 
 A camerata rule must make sense to a project that has never heard of any other project. Do not reference:
 
@@ -99,7 +118,7 @@ A camerata rule must make sense to a project that has never heard of any other p
 
 A rule that says "use the v2 component library" or "follow the AUTH-1 pattern" only makes sense inside the project where v2 and AUTH-1 exist. The same rule generalized — "use the project's component library," "carry capability flags on response objects" — works for everyone.
 
-### 8. `default = true` vs `default = false`
+### 9. `default = true` vs `default = false`
 
 The `default` flag controls whether the rule's checkbox auto-checks when its domain is selected. Use the following heuristic:
 
@@ -110,7 +129,7 @@ If unsure, default to `true`. The library exists to commit, not to hedge.
 
 Meta-domain rules (in `howto` and `contributing`) use `default = false` because they are documentation, not adoptable conventions.
 
-### 9. Enforcement levels: pick what is actually achievable
+### 10. Enforcement levels: pick what is actually achievable
 
 | Level | Meaning | Emit target |
 |---|---|---|
@@ -120,7 +139,7 @@ Meta-domain rules (in `howto` and `contributing`) use `default = false` because 
 
 Claiming `mechanical` without committing to provide the mechanism is a hollow claim and degrades the level to `structured` in practice. Either provide the mechanism (or describe it concretely enough that the downstream agent can implement it) or downgrade.
 
-### 10. Domain-selection metadata is maintainer-only
+### 11. Domain-selection metadata is maintainer-only
 
 The list of domains that ship pre-selected when the GUI launches is the `DEFAULT_SELECTED_DOMAINS` const in [`src/lib.rs`](src/lib.rs). Currently only `*` (Universal) and `agentic` ship pre-selected. **A PR contributing a new rule, capability domain, or stack profile must not modify this const.** Promoting a domain into the default-selected set is a maintainer-only decision; the PR linter rejects any PR that modifies the relevant lines without an explicit maintainer override.
 
