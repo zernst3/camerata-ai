@@ -184,6 +184,16 @@ A camerata rule must make sense to a project that has never heard of any other p
 
 A rule that says "use the v2 component library" or "follow the AUTH-1 pattern" only makes sense inside the project where v2 and AUTH-1 exist. The same rule generalized — "use the project's component library," "carry capability flags on response objects" — works for everyone.
 
+**Project CONTEXT also belongs out of the directive surface, not just project names.** The rule's `summary` and `alternatives` describe a directive. They do NOT describe the project context that motivated the directive, the operational workflow the directive plugs into, or the rule author's specific orchestration setup. Examples of context leaks that fail this rule even when no project is named:
+
+- Parenthetical examples in the summary that read as extracted from specific situations the author had in mind ("(positioning conflicts with X, ecosystem convention diverges from Y, downstream constraint defeats Z...)") — these encode the situations the author was thinking about rather than the directive itself.
+- Cross-rule references to other camerata rules by name inside the summary or alternatives ("...recorded in the auto-calls ledger," "...flagged per ORCH-FOO-1"). Rules must stand alone; if a concept from another rule is load-bearing, restate it inline as an abstract operational property, not as a citation.
+- Operational vocabulary that assumes a specific workflow shape ("review cadence window," "ledger review pass," "track record of overrides") — these encode the author's project's workflow rather than the rule's directive.
+
+The `why` is the only field where context for why the rule exists is welcome, and even there the context is *architectural reasoning* (what failure mode the rule prevents, what trade-off the rule resolves), not *project-operational context* (how a specific project's review process works, what cadence the author's team operates at). Rules are directives. The `why` exists to explain why the directive holds; not to describe the situation the author extracted the directive from.
+
+The diagnostic: read the summary and alternatives out loud as if reading them to a team in a different industry, with a different review cadence, on a different stack. If a phrase only makes sense because the reader shares the author's project context, the phrase is a context leak and belongs in `why` or out of the rule entirely.
+
 ### 9. `default = true` vs `default = false`
 
 The `default` flag controls whether the rule's checkbox auto-checks when its domain is selected. Use the following heuristic:
@@ -228,6 +238,17 @@ Format: lowercase, hyphens for compound capability names (`api-layer`, `ci-cd`),
 These are known gaps in v0.1.0 that are documented here so contributors understand what camerata does and does not commit to today, and so that future contributors do not work around the gaps in ways that conflict with planned v0.2 features.
 
 **Emit is overwrite-only.** Running `camerata generate` against a directory that already contains AGENTS.md, CONVENTIONS.md, or camerata.lock fully replaces those files. There is no merge step. The GUI's Generate-confirm banner lists the files that would be overwritten so the user can cancel and back them up first; the CLI does not yet check, though it will in a follow-up. Hand edits to the emitted files are lost on regeneration. Workaround for v0.1: keep all rule changes in the principle library (not in the emitted file) and re-run camerata to pick them up. v0.2 will add an upsert path that preserves hand-edited regions where possible.
+
+**v0.2 upsert design constraint (locked 2026-06-01): user-customized state is sacred.** The upsert merges upstream library updates into the project's existing emit; it does NOT overwrite any state the architect customized. The sacred set:
+
+- `Profile.chosen` — alternatives the architect selected on `tag = "choice"` rules
+- `Profile.custom_alternatives` — alternatives the architect added to canonical rules
+- `Profile.custom_rules` — rules the architect authored outside the canonical library
+- `Profile.custom_domains` — domains the architect created
+- Edited rule summary text (whether captured through a future GUI edit flow or hand-edited in the emit files)
+- Recorded waivers (per the waiver mechanism in [[ORCH-CONFORMANCE-1]])
+
+When the upsert encounters a conflict between an upstream library update and a user-customized rule, it surfaces a review prompt rather than silently overwriting. This connects to ORCH-CONTEXT-OVERRIDE-1: that rule requires explicit human sign-off before the agent overrides a documented rule. The upsert preservation contract is what makes that sign-off durable — once a human has signed off on a project-specific override, the override survives every subsequent regeneration. Without the preservation contract, the sign-off has no durability and the rule degrades into "pause now, lose the work later." The two are halves of the same architectural commitment.
 
 **No reverse-engineering of a profile from an existing repo.** Camerata cannot today read a target repo's AGENTS.md / CONVENTIONS.md / camerata.lock and reconstruct a Profile JSON from them. The lock file records installed IDs and content hashes, and we could in principle parse the emit files back into a profile, but two things make this nontrivial enough to defer: (1) recovering which alternative was chosen on a `tag = "choice"` rule requires text-matching the emitted body against each alternative, which is fragile to whitespace and casing changes, and (2) custom rules live in AGENTS.md under their `CUSTOM-name` headings and parsing them back into the Profile schema requires careful handling of edge cases. v0.2 will introduce a `camerata import` subcommand that performs this reconstruction with an explicit "best effort" caveat.
 
