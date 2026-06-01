@@ -1316,28 +1316,53 @@ fn app() -> Element {
                         span { style: "margin-left:auto;", "{selected_count} selected" }
                     }
 
-                    // Domain search: free-text filter over the domain list.
-                    // Empty string matches everything (default). Matches the
-                    // domain label AND the raw domain identifier so users
-                    // can find "rust:dioxus" by typing either "rust" or
-                    // "dioxus".
+                    // Search: free-text filter over the domain list.
+                    // Empty string matches everything (default). Matches:
+                    //   - the domain label ("Capability · agentic") and the
+                    //     raw domain identifier ("agentic") so the user can
+                    //     find "rust:dioxus" by typing either "rust" or
+                    //     "dioxus"
+                    //   - any rule's title within the domain ("the clear-
+                    //     winner test") so the user can find rules without
+                    //     knowing their domain
+                    //   - any rule's identifier ("ORCH-CONTEXT-OVERRIDE-1")
+                    //     for direct rule lookup when the architect knows
+                    //     the ID
+                    // A domain is shown if EITHER it matches or any rule
+                    // inside it matches.
                     div { style: "margin-bottom:8px;",
                         input {
                             r#type: "text",
-                            placeholder: "Search domains...",
+                            placeholder: "Search domains, rules, or rule IDs...",
                             value: "{domain_search}",
                             oninput: move |e| domain_search.set(e.value()),
                             style: "width:100%; padding:6px 8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:0.9em;",
                         }
                     }
 
-                    for (domain , open , rows) in groups.iter().filter(|(d, _, _)| {
+                    for (domain , open , rows) in groups.iter().filter(|(d, _, rows)| {
                         let q = domain_search.read().trim().to_lowercase();
                         if q.is_empty() {
                             return true;
                         }
-                        domain_label(d).to_lowercase().contains(&q)
+                        // Match domain label or identifier first (cheap).
+                        if domain_label(d).to_lowercase().contains(&q)
                             || d.to_lowercase().contains(&q)
+                        {
+                            return true;
+                        }
+                        // Otherwise, check whether any rule inside this
+                        // domain matches by title or ID. The row tuple is
+                        // (idx, title, tag_glyph); the rule ID lives on the
+                        // principle itself, so we resolve through plist.
+                        let plist_read = principles.read();
+                        rows.iter().any(|(i, title, _)| {
+                            title.to_lowercase().contains(&q)
+                                || plist_read
+                                    .get(*i)
+                                    .map(|p| p.id.to_lowercase().contains(&q))
+                                    .unwrap_or(false)
+                        })
                     }) {
                         div { style: "margin-bottom:4px;",
                             div { style: "display:flex; align-items:center; gap:6px; background:#f3f3f3; border:1px solid #ddd; border-radius:4px; padding:6px;",
