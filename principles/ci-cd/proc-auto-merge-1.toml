@@ -9,8 +9,8 @@ stance = "default"
 summary = "PRs that are bot-authored, single-purpose, convention-following, touch no hard-guard areas, add no new conventions, and pass CI + automated review → auto-merge (tagged). Frees human review for judgment-heavy PRs."
 why = "Tight bot PRs don't need human judgment; conventions + CI cover the safety surface."
 alternatives = [
-    "require human review on everything (safer, slower)",
-    "auto-merge more aggressively (wider blast radius)",
+    "every PR including tight bot-authored ones requires human review on the diff before merge (safer, slower; loses the throughput benefit of letting cheap mechanical changes through)",
+    "any bot-authored PR auto-merges once CI passes, regardless of scope or whether it touches hard-guard areas (faster throughput, wider blast radius; a single bad routine can ship a damaging change before anyone notices)",
 ]
 
 [choice]

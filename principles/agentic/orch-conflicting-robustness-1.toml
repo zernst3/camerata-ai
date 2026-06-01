@@ -9,7 +9,7 @@ stance = "default"
 summary = "When options are each robust against different failures (rigid constraints vs. bad data; flexibility vs. changing requirements), name both failure modes and pause to escalate the decision to a human reviewer. That is a genuine tradeoff, not a clear winner. Let the human pick which failure mode their context cares about more."
 why = "Robustness is plural; picking one dimension unilaterally silently accepts the other failure mode."
 alternatives = [
-    "treat the first robust option found as the winner (silently accepts the unaddressed failure; the choice becomes 'whichever option the search order surfaced first')",
-    "pick the option whose failure mode has a cheaper recovery in this context (defensible heuristic, but it rarely has enough domain knowledge to judge recovery cost accurately; this is exactly the lens a human reviewer should apply)",
-    "adopt both protections by combining the options (sometimes possible; doubles the complexity surface and trades a single decision for ongoing maintenance of both code paths)",
+    "when options are each robust against different failures, treat the first robust option the agent encounters as the winner and proceed (silently accepts the unaddressed failure mode; the choice becomes 'whichever option the search order surfaced first' rather than a real judgment)",
+    "when options are each robust against different failures, the agent picks autonomously based on which option's failure mode has a cheaper recovery in the project's context (defensible heuristic, but rarely has enough domain knowledge to judge recovery cost accurately; this is exactly the lens a human reviewer should apply)",
+    "when options are each robust against different failures, the agent adopts every option by combining their protections in the same artifact rather than picking one (sometimes possible; doubles the complexity surface and trades a single decision for ongoing maintenance of every code path)",
 ]
