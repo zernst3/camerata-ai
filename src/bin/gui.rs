@@ -463,6 +463,16 @@ fn app() -> Element {
     // every domain (the default behavior before the search bar existed).
     let mut domain_search = use_signal(String::new);
 
+    // Free-text filter applied to the rules within domains. Matches
+    // case-insensitively against rule title AND rule identifier, so
+    // the user can either type a phrase from the rule's title or paste
+    // an ID directly. The two searches are independent: domain_search
+    // narrows which domains are shown; rule_search narrows which RULES
+    // are shown within each visible domain (and hides any domain whose
+    // rules all fail the rule filter). When the architect knows the
+    // rule ID, a rule_search collapses the listing to just that rule.
+    let mut rule_search = use_signal(String::new);
+
     // Recovery state: on launch, check the autosave path. If a profile exists
     // there, hold it in pending_recovery and surface the recovery banner.
     let mut pending_recovery = use_signal(|| {
@@ -1316,51 +1326,66 @@ fn app() -> Element {
                         span { style: "margin-left:auto;", "{selected_count} selected" }
                     }
 
-                    // Search: free-text filter over the domain list.
-                    // Empty string matches everything (default). Matches:
-                    //   - the domain label ("Capability · agentic") and the
-                    //     raw domain identifier ("agentic") so the user can
-                    //     find "rust:dioxus" by typing either "rust" or
-                    //     "dioxus"
-                    //   - any rule's title within the domain ("the clear-
-                    //     winner test") so the user can find rules without
-                    //     knowing their domain
-                    //   - any rule's identifier ("ORCH-CONTEXT-OVERRIDE-1")
-                    //     for direct rule lookup when the architect knows
-                    //     the ID
-                    // A domain is shown if EITHER it matches or any rule
-                    // inside it matches.
-                    div { style: "margin-bottom:8px;",
+                    // Two independent search inputs:
+                    //   - domain_search narrows which DOMAINS are shown.
+                    //     Matches the domain label ("Capability · agentic")
+                    //     and the raw domain identifier ("agentic").
+                    //   - rule_search narrows which RULES are shown within
+                    //     each visible domain. Matches rule title and rule
+                    //     identifier ("ORCH-CONTEXT-OVERRIDE-1"). When
+                    //     rule_search is active, domains that contain no
+                    //     matching rule are hidden, and inside the domains
+                    //     that ARE shown, only the matching rules render.
+                    // Separating the two lets the architect surface exactly
+                    // one rule by pasting its ID without expanding the rest
+                    // of its sibling domain.
+                    div { style: "margin-bottom:8px; display:flex; flex-direction:column; gap:6px;",
                         input {
                             r#type: "text",
-                            placeholder: "Search domains, rules, or rule IDs...",
+                            placeholder: "Search domains...",
                             value: "{domain_search}",
                             oninput: move |e| domain_search.set(e.value()),
+                            style: "width:100%; padding:6px 8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:0.9em;",
+                        }
+                        input {
+                            r#type: "text",
+                            placeholder: "Search rules (title or ID)...",
+                            value: "{rule_search}",
+                            oninput: move |e| rule_search.set(e.value()),
                             style: "width:100%; padding:6px 8px; box-sizing:border-box; border:1px solid #ccc; border-radius:4px; font-size:0.9em;",
                         }
                     }
 
                     for (domain , open , rows) in groups.iter().filter(|(d, _, rows)| {
-                        let q = domain_search.read().trim().to_lowercase();
-                        if q.is_empty() {
+                        let dq = domain_search.read().trim().to_lowercase();
+                        let rq = rule_search.read().trim().to_lowercase();
+
+                        // Domain filter: domain must match domain_search
+                        // (or domain_search is empty).
+                        let domain_ok = if dq.is_empty() {
+                            true
+                        } else {
+                            domain_label(d).to_lowercase().contains(&dq)
+                                || d.to_lowercase().contains(&dq)
+                        };
+                        if !domain_ok {
+                            return false;
+                        }
+
+                        // Rule filter: if rule_search is set, at least one
+                        // rule inside this domain must match by title or ID.
+                        // The row tuple is (idx, title, tag_glyph); the rule
+                        // ID lives on the principle itself, resolved through
+                        // plist.
+                        if rq.is_empty() {
                             return true;
                         }
-                        // Match domain label or identifier first (cheap).
-                        if domain_label(d).to_lowercase().contains(&q)
-                            || d.to_lowercase().contains(&q)
-                        {
-                            return true;
-                        }
-                        // Otherwise, check whether any rule inside this
-                        // domain matches by title or ID. The row tuple is
-                        // (idx, title, tag_glyph); the rule ID lives on the
-                        // principle itself, so we resolve through plist.
                         let plist_read = principles.read();
                         rows.iter().any(|(i, title, _)| {
-                            title.to_lowercase().contains(&q)
+                            title.to_lowercase().contains(&rq)
                                 || plist_read
                                     .get(*i)
-                                    .map(|p| p.id.to_lowercase().contains(&q))
+                                    .map(|p| p.id.to_lowercase().contains(&rq))
                                     .unwrap_or(false)
                         })
                     }) {
@@ -1503,7 +1528,28 @@ fn app() -> Element {
                                         }
                                     }
                                 }
-                                for (idx , title , tag) in rows.iter() {
+                                for (idx , title , tag) in rows.iter().filter(|(i, title, _)| {
+                                    // When rule_search is active, render
+                                    // only the rules whose title or ID
+                                    // matches. Defaults/All/Clear above
+                                    // still operate on the ENTIRE domain
+                                    // (rows, not filtered), because those
+                                    // are domain-scope operations and
+                                    // hiding non-matching rules from view
+                                    // doesn't mean the user wants them
+                                    // excluded from a domain-wide toggle.
+                                    let rq = rule_search.read().trim().to_lowercase();
+                                    if rq.is_empty() {
+                                        return true;
+                                    }
+                                    if title.to_lowercase().contains(&rq) {
+                                        return true;
+                                    }
+                                    principles.read()
+                                        .get(*i)
+                                        .map(|p| p.id.to_lowercase().contains(&rq))
+                                        .unwrap_or(false)
+                                }) {
                                     {
                                         // Meta-doc domains (howto, contributing) render their
                                         // rules at full opacity even though they have no
