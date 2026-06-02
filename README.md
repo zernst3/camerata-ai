@@ -25,7 +25,7 @@ camerata is written in Rust. You'll need:
 ### Clone and build
 
 ```sh
-git clone https://github.com/<your-username>/camerata-ai
+git clone https://github.com/zernst3/camerata-ai
 cd camerata-ai
 cargo build                                   # CLI only
 cargo build --bin camerata-gui --features gui # CLI + GUI
