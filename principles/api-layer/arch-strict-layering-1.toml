@@ -7,7 +7,7 @@ enforcement = "mechanical"
 default = true
 stance = "default"
 summary = "Controllers handle HTTP only; services hold framework-agnostic business logic; repositories own all DB query calls. Enforce the boundary with lint (block direct DB access outside the data layer). Exception: transaction flow control belongs in services."
-why = "Prevents business logic hiding inside the query layer; keeps each layer testable and swappable."
+why = "Prevents business logic hiding inside the query layer; keeps each layer testable and swappable. Mixing layers and allowing DB access anywhere leaks business logic into the query layer, where it becomes harder to test in isolation and harder to surface during review, because reviewers naturally focus on the layer the change appears to belong to."
 alternatives = [
-    "mixed layers / DB access anywhere (business logic leaks into queries, hard to test)",
+    "controllers, services, and repositories are not separated by lint enforcement, and DB access can happen from any layer regardless of role",
 ]

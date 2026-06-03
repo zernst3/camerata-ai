@@ -7,9 +7,9 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Public endpoints carry an explicit version in the URL path: /v1/orgs, /v2/orgs, and so on. Within a published version, no field is renamed, removed, or has its type changed; only additive changes are allowed (new optional fields, new endpoints, looser validation). Breaking changes ship as a new major version; older versions remain available for a documented deprecation window before retirement."
-why = "Versioning in the URL is the most discoverable and toolable scheme: a curl command, a router log, and a trace all surface the version at a glance. Strict additive evolution within a version means any client that worked on day one of v1 still works on day N of v1; client teams plan version migrations on their own schedule rather than reacting to every server release."
+why = "Versioning in the URL is the most discoverable and toolable scheme: a curl command, a router log, and a trace all surface the version at a glance. Strict additive evolution within a version means any client that worked on day one of v1 still works on day N of v1; client teams plan version migrations on their own schedule rather than reacting to every server release. Header-based versioning (an Accept header naming the version) is less discoverable than URL versioning, and the failure mode is subtle: clients that forget or mis-set the header silently land on the wrong version. Evolving without versioning at all turns every change into a breaking change for some client, and cross-team coordination becomes the bottleneck on every shipping decision. Content negotiation across multiple representations is powerful but heavy, and most teams underuse the machinery they paid for, since few clients implement it correctly."
 alternatives = [
-    "header-based versioning, e.g. Accept: application/vnd.api.v2+json (less discoverable; subtle bugs when clients forget or mis-set the header)",
-    "no versioning, evolve in place (every change is a breaking change for some client; cross-team coordination becomes the bottleneck on shipping)",
-    "content negotiation across multiple representations (powerful but heavy; few clients implement it correctly, and most teams underuse the machinery they paid for)",
+    "the API version is selected by a request header (such as Accept: application/vnd.api.v2+json) rather than appearing in the URL path",
+    "the API has no version segment at all and evolves in place, with each change applying to all current clients",
+    "the API exposes multiple representations of each resource and clients negotiate version through a content-negotiation handshake",
 ]
