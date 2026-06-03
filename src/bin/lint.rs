@@ -326,4 +326,228 @@ mod tests {
             assert!(!is_valid_id_format(bad), "expected to reject {bad:?}");
         }
     }
+
+    /// Write `text` into a tempdir as `rule.toml`, run check_file on it, and
+    /// return the kinds of violations that fired. The tempdir is kept alive
+    /// for the duration of the assertion via the returned handle.
+    fn check_one(text: &str) -> (tempfile::TempDir, Vec<&'static str>) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("rule.toml");
+        std::fs::write(&path, text).expect("write");
+        let mut violations = Vec::new();
+        let mut id_to_files = HashMap::new();
+        check_file(&path, &mut violations, &mut id_to_files);
+        let kinds: Vec<&'static str> = violations.iter().map(|v| v.kind).collect();
+        (dir, kinds)
+    }
+
+    #[test]
+    fn schema_violation_for_malformed_toml() {
+        let (_d, kinds) = check_one("this is not = valid toml [[[");
+        assert!(
+            kinds.contains(&"schema"),
+            "expected schema violation; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn schema_violation_for_missing_required_field() {
+        // Missing `summary` (required by Principle schema).
+        let text = r#"
+id = "TEST-MISSING-1"
+title = "missing summary"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+alternatives = ["something"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"schema"),
+            "expected schema violation; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn id_format_violation_emitted_when_id_is_lowercase() {
+        let text = r#"
+id = "rust-domain-4"
+title = "bad id"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "body"
+alternatives = ["alt"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"id-format"),
+            "expected id-format violation; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn choice_tag_without_choice_block_is_flagged() {
+        let text = r#"
+id = "TEST-CHOICE-1"
+title = "choice rule"
+tag = "choice"
+layer = "universal"
+enforcement = "prose"
+default = false
+summary = "body"
+alternatives = ["alt"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"choice-missing-block"),
+            "expected choice-missing-block; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn empty_alternatives_array_is_flagged() {
+        let text = r#"
+id = "TEST-NOALT-1"
+title = "no alternatives"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "body"
+alternatives = []
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"alternatives-empty"),
+            "expected alternatives-empty; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn backtick_in_summary_is_flagged() {
+        let text = r#"
+id = "TEST-BACKTICK-1"
+title = "ok title"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "body with a `backtick` inside"
+alternatives = ["alt"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"backtick-in-content"),
+            "expected backtick-in-content for summary; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn backtick_in_title_is_flagged() {
+        let text = r#"
+id = "TEST-BACKTICK-2"
+title = "bad `title` with backticks"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "clean body"
+alternatives = ["alt"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"backtick-in-content"),
+            "expected backtick-in-content for title; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn backtick_in_why_is_flagged() {
+        let text = r#"
+id = "TEST-BACKTICK-3"
+title = "ok"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "clean body"
+why = "reason with a `backtick`"
+alternatives = ["alt"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"backtick-in-content"),
+            "expected backtick-in-content for why; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn backtick_in_alternative_is_flagged() {
+        let text = r#"
+id = "TEST-BACKTICK-4"
+title = "ok"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "clean body"
+alternatives = ["alt with a `backtick`"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"backtick-in-content"),
+            "expected backtick-in-content for alternative; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn clean_rule_produces_no_violations() {
+        let text = r#"
+id = "TEST-CLEAN-1"
+title = "a clean rule"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "the directive body"
+why = "the reason this directive exists"
+alternatives = ["the loosened variant"]
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.is_empty(),
+            "clean rule produced violations: {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn duplicate_id_across_files_is_flagged_by_run() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let body = |id: &str| -> String {
+            format!(
+                r#"
+id = "{id}"
+title = "t"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "body"
+alternatives = ["alt"]
+"#
+            )
+        };
+        std::fs::write(dir.path().join("one.toml"), body("TEST-DUP-1")).expect("write one");
+        std::fs::write(dir.path().join("two.toml"), body("TEST-DUP-1")).expect("write two");
+
+        let violation_count = run(dir.path()).expect("run");
+        // Each duplicate ID produces a violation per file (so 2 here).
+        assert!(
+            violation_count >= 2,
+            "expected at least 2 duplicate-id violations; got {violation_count}",
+        );
+    }
 }

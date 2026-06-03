@@ -19,6 +19,9 @@ dioxus = { version = "0.6", features = ["desktop"], optional = true }
 rfd = { version = "0.15", optional = true }
 dirs = { version = "5", optional = true }
 
+[dev-dependencies]
+tempfile = "3"
+
 [features]
 gui = ["dep:dioxus", "dep:rfd", "dep:dirs"]
 

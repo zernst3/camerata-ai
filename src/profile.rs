@@ -71,3 +71,109 @@ impl Profile {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn sample_profile() -> Profile {
+        let mut chosen = HashMap::new();
+        chosen.insert("CHOICE-RULE-1".to_string(), "the alternative text".to_string());
+        let mut domain_repos = HashMap::new();
+        domain_repos.insert("rust".to_string(), vec!["/repos/rust-repo".to_string()]);
+        Profile {
+            version: PROFILE_VERSION,
+            selected_ids: vec!["UNIV-RULE-1".to_string(), "RUST-DOMAIN-4".to_string()],
+            selected_domains: vec!["*".to_string(), "rust".to_string()],
+            chosen,
+            custom_alternatives: HashMap::new(),
+            custom_rules: Vec::new(),
+            custom_domains: Vec::new(),
+            out_dir: "./out".to_string(),
+            repos: vec!["/repos/default".to_string()],
+            domain_repos,
+        }
+    }
+
+    #[test]
+    fn round_trip_through_disk_preserves_fields() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("nested").join("profile.json");
+        let original = sample_profile();
+        original.save(&path).expect("save");
+
+        let loaded = Profile::load(&path).expect("load");
+        assert_eq!(loaded.version, PROFILE_VERSION);
+        assert_eq!(loaded.selected_ids, original.selected_ids);
+        assert_eq!(loaded.selected_domains, original.selected_domains);
+        assert_eq!(
+            loaded.chosen.get("CHOICE-RULE-1").map(String::as_str),
+            Some("the alternative text"),
+        );
+        assert_eq!(loaded.out_dir, original.out_dir);
+        assert_eq!(loaded.repos, original.repos);
+        assert_eq!(
+            loaded.domain_repos.get("rust").map(|v| v.as_slice()),
+            Some(["/repos/rust-repo".to_string()].as_slice()),
+        );
+    }
+
+    #[test]
+    fn save_creates_missing_parent_directories() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("a").join("b").join("c").join("profile.json");
+        Profile::default().save(&path).expect("save");
+        assert!(path.exists(), "profile.json was created under nested parents");
+    }
+
+    #[test]
+    fn missing_ids_returns_ids_absent_from_library() {
+        let p = sample_profile();
+        let library = ["UNIV-RULE-1", "OTHER-RULE-1"];
+        let missing = p.missing_ids(library);
+        assert_eq!(missing, vec!["RUST-DOMAIN-4".to_string()]);
+    }
+
+    #[test]
+    fn missing_ids_returns_empty_when_library_covers_all() {
+        let p = sample_profile();
+        let library = ["UNIV-RULE-1", "RUST-DOMAIN-4"];
+        let missing = p.missing_ids(library);
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn missing_ids_returns_all_when_library_is_empty() {
+        let p = sample_profile();
+        let missing = p.missing_ids(std::iter::empty::<&str>());
+        assert_eq!(missing.len(), 2);
+        assert!(missing.contains(&"UNIV-RULE-1".to_string()));
+        assert!(missing.contains(&"RUST-DOMAIN-4".to_string()));
+    }
+
+    #[test]
+    fn legacy_profile_without_selected_domains_still_loads() {
+        // selected_domains was added later; profiles saved before its
+        // introduction must still deserialize (the field carries
+        // #[serde(default)]).
+        let legacy_json = r#"{
+            "version": 1,
+            "selected_ids": ["UNIV-RULE-1"],
+            "chosen": {},
+            "custom_alternatives": {},
+            "custom_rules": [],
+            "custom_domains": [],
+            "out_dir": "./out",
+            "repos": [],
+            "domain_repos": {}
+        }"#;
+        let p: Profile = serde_json::from_str(legacy_json).expect("legacy profile parses");
+        assert_eq!(p.version, 1);
+        assert!(
+            p.selected_domains.is_empty(),
+            "selected_domains defaults to empty for legacy profiles",
+        );
+        assert_eq!(p.selected_ids, vec!["UNIV-RULE-1".to_string()]);
+    }
+}

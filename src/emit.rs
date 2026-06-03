@@ -321,3 +321,379 @@ pub fn scaffold_routed(
     }
     Ok(results)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::principle::{Layer, Principle};
+    use tempfile::tempdir;
+
+    fn principle(
+        id: &str,
+        title: &str,
+        domain: &str,
+        layer: Layer,
+        enforcement: Enforcement,
+        summary: &str,
+    ) -> Principle {
+        let toml_text = format!(
+            r#"
+id = "{id}"
+title = "{title}"
+tag = "universal"
+domain = "{domain}"
+layer = "{layer}"
+enforcement = "{enforcement}"
+default = true
+summary = "{summary}"
+why = "the architect-only reasoning that must not appear in emitted output"
+alternatives = ["the loosened variant that must not appear in emitted output"]
+"#,
+            layer = match layer {
+                Layer::Universal => "universal",
+                Layer::Language => "language",
+                Layer::Library => "library",
+                Layer::Framework => "framework",
+            },
+            enforcement = match enforcement {
+                Enforcement::Prose => "prose",
+                Enforcement::Structured => "structured",
+                Enforcement::Mechanical => "mechanical",
+            },
+        );
+        toml::from_str(&toml_text).expect("fixture parses")
+    }
+
+    #[test]
+    fn target_filename_maps_aicodingrules_to_agents_md() {
+        assert_eq!(target_filename("aicodingrules"), "AGENTS.md");
+    }
+
+    #[test]
+    fn target_filename_passes_other_targets_through() {
+        assert_eq!(target_filename("CONVENTIONS.md"), "CONVENTIONS.md");
+        assert_eq!(target_filename("CUSTOM_FILE.md"), "CUSTOM_FILE.md");
+    }
+
+    #[test]
+    fn default_target_routes_prose_to_agents_via_interchange_id() {
+        let p = principle(
+            "TEST-PROSE-1",
+            "prose rule",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "a prose directive",
+        );
+        assert_eq!(default_target(&p), "aicodingrules");
+    }
+
+    #[test]
+    fn default_target_routes_structured_and_mechanical_to_conventions_md() {
+        for enforcement in [Enforcement::Structured, Enforcement::Mechanical] {
+            let p = principle(
+                "TEST-X-1",
+                "rule",
+                "*",
+                Layer::Universal,
+                enforcement,
+                "a rule",
+            );
+            assert_eq!(default_target(&p), "CONVENTIONS.md");
+        }
+    }
+
+    #[test]
+    fn render_emits_id_and_title_header() {
+        let p = principle(
+            "TEST-RENDER-1",
+            "the rule title",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the directive",
+        );
+        let out = render(&Selection { principle: &p, chosen: None }, None);
+        assert!(
+            out.starts_with("### TEST-RENDER-1 — the rule title\n"),
+            "header missing or malformed; got:\n{out}",
+        );
+    }
+
+    #[test]
+    fn render_uses_default_summary_when_no_alternative_chosen() {
+        let p = principle(
+            "TEST-DEFAULT-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the default summary directive",
+        );
+        let out = render(&Selection { principle: &p, chosen: None }, None);
+        assert!(out.contains("the default summary directive"));
+    }
+
+    #[test]
+    fn render_substitutes_chosen_alternative_for_default_summary() {
+        let p = principle(
+            "TEST-CHOICE-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the default summary directive",
+        );
+        let out = render(
+            &Selection {
+                principle: &p,
+                chosen: Some("the chosen alternative directive".to_string()),
+            },
+            None,
+        );
+        assert!(out.contains("the chosen alternative directive"));
+        assert!(
+            !out.contains("the default summary directive"),
+            "default summary leaked when an alternative was chosen; got:\n{out}",
+        );
+    }
+
+    #[test]
+    fn render_omits_architect_only_fields() {
+        // alternatives, why, stance, tag, and choice are architect-only and
+        // must never reach the consumer agent. This is the core v0.1 contract.
+        let p = principle(
+            "TEST-OMIT-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the directive",
+        );
+        let out = render(&Selection { principle: &p, chosen: None }, None);
+        assert!(!out.contains("architect-only reasoning"), "why leaked");
+        assert!(!out.contains("loosened variant"), "alternatives leaked");
+        assert!(!out.contains("tag"), "tag literal leaked");
+        assert!(!out.contains("stance"), "stance literal leaked");
+    }
+
+    #[test]
+    fn render_appends_scope_line_when_provided() {
+        let p = principle(
+            "TEST-SCOPE-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "directive",
+        );
+        let out = render(
+            &Selection { principle: &p, chosen: None },
+            Some("**/*.rs"),
+        );
+        assert!(out.contains("_Applies to:_ `**/*.rs`"));
+    }
+
+    #[test]
+    fn scaffold_partitions_prose_to_agents_md_and_structured_to_conventions_md() {
+        let dir = tempdir().expect("tempdir");
+        let prose = principle(
+            "TEST-PROSE-1",
+            "prose rule",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "prose directive body",
+        );
+        let structured = principle(
+            "TEST-STRUCT-1",
+            "structured rule",
+            "*",
+            Layer::Universal,
+            Enforcement::Structured,
+            "structured directive body",
+        );
+        let selections = vec![
+            Selection { principle: &prose, chosen: None },
+            Selection { principle: &structured, chosen: None },
+        ];
+
+        let outcome = scaffold(dir.path(), &selections, &[]).expect("scaffold");
+        assert_eq!(outcome.installed, 2);
+
+        let agents = fs::read_to_string(dir.path().join("AGENTS.md")).expect("AGENTS.md exists");
+        let conv = fs::read_to_string(dir.path().join("CONVENTIONS.md"))
+            .expect("CONVENTIONS.md exists");
+        assert!(agents.contains("TEST-PROSE-1"), "prose rule landed in AGENTS.md");
+        assert!(
+            !agents.contains("TEST-STRUCT-1"),
+            "structured rule must NOT land in AGENTS.md",
+        );
+        assert!(
+            conv.contains("TEST-STRUCT-1"),
+            "structured rule landed in CONVENTIONS.md",
+        );
+        assert!(
+            !conv.contains("TEST-PROSE-1"),
+            "prose rule must NOT land in CONVENTIONS.md",
+        );
+    }
+
+    #[test]
+    fn scaffold_orders_selections_by_layer_ascending_then_id() {
+        let dir = tempdir().expect("tempdir");
+        let universal = principle(
+            "AAA-UNIV-1",
+            "universal",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "universal body",
+        );
+        let language = principle(
+            "AAA-LANG-1",
+            "language",
+            "rust",
+            Layer::Language,
+            Enforcement::Prose,
+            "language body",
+        );
+        let framework = principle(
+            "AAA-FRAME-1",
+            "framework",
+            "rust:dioxus",
+            Layer::Framework,
+            Enforcement::Prose,
+            "framework body",
+        );
+        let selections = vec![
+            Selection { principle: &framework, chosen: None },
+            Selection { principle: &universal, chosen: None },
+            Selection { principle: &language, chosen: None },
+        ];
+
+        scaffold(dir.path(), &selections, &[]).expect("scaffold");
+        let agents = fs::read_to_string(dir.path().join("AGENTS.md")).expect("AGENTS.md");
+        let univ_pos = agents.find("AAA-UNIV-1").expect("universal present");
+        let lang_pos = agents.find("AAA-LANG-1").expect("language present");
+        let frame_pos = agents.find("AAA-FRAME-1").expect("framework present");
+        assert!(univ_pos < lang_pos, "universal must precede language");
+        assert!(lang_pos < frame_pos, "language must precede framework");
+    }
+
+    #[test]
+    fn scaffold_writes_lockfile_with_each_installed_id() {
+        let dir = tempdir().expect("tempdir");
+        let p = principle(
+            "TEST-LOCK-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "body",
+        );
+        let selections = vec![Selection { principle: &p, chosen: None }];
+        scaffold(dir.path(), &selections, &[]).expect("scaffold");
+
+        let lock = fs::read_to_string(dir.path().join("camerata.lock")).expect("lockfile exists");
+        assert!(lock.contains("[[installed]]"));
+        assert!(lock.contains("id = \"TEST-LOCK-1\""));
+        assert!(lock.contains("hash = "));
+    }
+
+    #[test]
+    fn scaffold_emits_custom_rule_into_agents_md_under_custom_heading() {
+        let dir = tempdir().expect("tempdir");
+        let custom = CustomRule {
+            name: "my-rule".to_string(),
+            body: "do the thing".to_string(),
+            domain: "rust".to_string(),
+        };
+        scaffold(dir.path(), &[], &[custom]).expect("scaffold");
+
+        let agents = fs::read_to_string(dir.path().join("AGENTS.md")).expect("AGENTS.md");
+        assert!(agents.contains("### CUSTOM-my-rule"));
+        assert!(agents.contains("domain: rust"));
+        assert!(agents.contains("do the thing"));
+    }
+
+    #[test]
+    fn scaffold_skips_empty_custom_rules() {
+        let dir = tempdir().expect("tempdir");
+        let blank = CustomRule {
+            name: "   ".to_string(),
+            body: "\n".to_string(),
+            domain: "*".to_string(),
+        };
+        scaffold(dir.path(), &[], &[blank]).expect("scaffold");
+        // No selections + skipped custom = no AGENTS.md written at all.
+        assert!(!dir.path().join("AGENTS.md").exists());
+    }
+
+    #[test]
+    fn scaffold_routed_sends_each_domain_to_its_override() {
+        let root = tempdir().expect("tempdir");
+        let default_out = root.path().join("default");
+        let rust_out = root.path().join("rust-repo");
+
+        let univ = principle(
+            "ROUTE-UNIV-1",
+            "universal",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "universal body",
+        );
+        let rust = principle(
+            "ROUTE-RUST-1",
+            "rust",
+            "rust",
+            Layer::Language,
+            Enforcement::Prose,
+            "rust body",
+        );
+        let selections = vec![
+            Selection { principle: &univ, chosen: None },
+            Selection { principle: &rust, chosen: None },
+        ];
+        let mut overrides: HashMap<String, Vec<PathBuf>> = HashMap::new();
+        overrides.insert("rust".to_string(), vec![rust_out.clone()]);
+
+        scaffold_routed(&default_out, &overrides, &selections, &[])
+            .expect("scaffold_routed");
+
+        let default_agents =
+            fs::read_to_string(default_out.join("AGENTS.md")).expect("default AGENTS.md");
+        let rust_agents =
+            fs::read_to_string(rust_out.join("AGENTS.md")).expect("rust AGENTS.md");
+        assert!(default_agents.contains("ROUTE-UNIV-1"));
+        assert!(
+            !default_agents.contains("ROUTE-RUST-1"),
+            "rust rule must NOT land in default repo",
+        );
+        assert!(rust_agents.contains("ROUTE-RUST-1"));
+        assert!(
+            !rust_agents.contains("ROUTE-UNIV-1"),
+            "universal rule must NOT land in rust repo (no override mapped *)",
+        );
+    }
+
+    #[test]
+    fn selections_json_omits_keys_for_unchosen_alternatives() {
+        let p = principle(
+            "TEST-JSON-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "body",
+        );
+        let json =
+            selections_json(&[Selection { principle: &p, chosen: None }]).expect("json");
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid json");
+        let arr = parsed.as_array().expect("array");
+        assert_eq!(arr.len(), 1);
+        assert_eq!(arr[0]["id"], "TEST-JSON-1");
+        assert!(arr[0]["chosen"].is_null(), "unchosen serializes as null");
+    }
+}

@@ -103,3 +103,143 @@ impl Principle {
 fn default_domain() -> String {
     "*".to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn minimal_toml() -> &'static str {
+        r#"
+id = "TEST-MINIMAL-1"
+title = "Minimal rule for round-trip"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+summary = "A short directive."
+alternatives = ["the loosened version of this rule"]
+"#
+    }
+
+    #[test]
+    fn toml_parses_minimal_principle() {
+        let p: Principle = toml::from_str(minimal_toml()).expect("parses");
+        assert_eq!(p.id, "TEST-MINIMAL-1");
+        assert_eq!(p.tag, Tag::Universal);
+        assert_eq!(p.layer, Layer::Universal);
+        assert_eq!(p.enforcement, Enforcement::Prose);
+        assert!(p.default);
+        assert_eq!(p.alternatives.len(), 1);
+    }
+
+    #[test]
+    fn domain_defaults_to_universal_star_when_absent() {
+        let p: Principle = toml::from_str(minimal_toml()).expect("parses");
+        assert_eq!(p.domain, "*");
+    }
+
+    #[test]
+    fn optional_fields_default_to_empty() {
+        let p: Principle = toml::from_str(minimal_toml()).expect("parses");
+        assert!(p.stance.is_none());
+        assert!(p.why.is_none());
+        assert!(p.emits.is_empty());
+        assert!(p.choice.is_none());
+    }
+
+    #[test]
+    fn enum_tags_deserialize_lowercase() {
+        for (literal, expected) in [
+            ("universal", Tag::Universal),
+            ("stack", Tag::Stack),
+            ("choice", Tag::Choice),
+        ] {
+            let toml_text = format!(
+                "id = \"X-Y-1\"\ntitle = \"t\"\ntag = \"{literal}\"\nlayer = \"universal\"\nenforcement = \"prose\"\ndefault = false\nsummary = \"s\"\nalternatives = [\"a\"]\n"
+            );
+            let p: Principle = toml::from_str(&toml_text).expect("parses");
+            assert_eq!(p.tag, expected, "tag literal {literal}");
+        }
+    }
+
+    #[test]
+    fn enum_enforcement_deserialize_lowercase() {
+        for (literal, expected) in [
+            ("prose", Enforcement::Prose),
+            ("structured", Enforcement::Structured),
+            ("mechanical", Enforcement::Mechanical),
+        ] {
+            let toml_text = format!(
+                "id = \"X-Y-1\"\ntitle = \"t\"\ntag = \"universal\"\nlayer = \"universal\"\nenforcement = \"{literal}\"\ndefault = false\nsummary = \"s\"\nalternatives = [\"a\"]\n"
+            );
+            let p: Principle = toml::from_str(&toml_text).expect("parses");
+            assert_eq!(p.enforcement, expected, "enforcement literal {literal}");
+        }
+    }
+
+    #[test]
+    fn enum_layer_deserialize_lowercase() {
+        for (literal, expected) in [
+            ("universal", Layer::Universal),
+            ("language", Layer::Language),
+            ("library", Layer::Library),
+            ("framework", Layer::Framework),
+        ] {
+            let toml_text = format!(
+                "id = \"X-Y-1\"\ntitle = \"t\"\ntag = \"universal\"\nlayer = \"{literal}\"\nenforcement = \"prose\"\ndefault = false\nsummary = \"s\"\nalternatives = [\"a\"]\n"
+            );
+            let p: Principle = toml::from_str(&toml_text).expect("parses");
+            assert_eq!(p.layer, expected, "layer literal {literal}");
+        }
+    }
+
+    #[test]
+    fn layer_orders_universal_before_specialized() {
+        // Most-specific wins on conflict; the derived Ord must match the
+        // declaration order so emit.rs's layer sort puts universal first.
+        assert!(Layer::Universal < Layer::Language);
+        assert!(Layer::Language < Layer::Library);
+        assert!(Layer::Library < Layer::Framework);
+    }
+
+    #[test]
+    fn choice_block_parses_when_present() {
+        let toml_text = r#"
+id = "X-Y-1"
+title = "t"
+tag = "choice"
+layer = "universal"
+enforcement = "prose"
+default = false
+summary = "s"
+alternatives = ["a"]
+
+[choice]
+prompt = "Pick one"
+options = ["one", "two"]
+default = "one"
+"#;
+        let p: Principle = toml::from_str(toml_text).expect("parses");
+        let c = p.choice.expect("choice present");
+        assert_eq!(c.prompt, "Pick one");
+        assert_eq!(c.options, vec!["one", "two"]);
+        assert_eq!(c.default, "one");
+    }
+
+    #[test]
+    fn stack_base_returns_none_for_universal() {
+        let p: Principle = toml::from_str(minimal_toml()).expect("parses");
+        assert_eq!(p.stack_base(), None);
+    }
+
+    #[test]
+    fn stack_base_strips_colon_suffix() {
+        let mut p: Principle = toml::from_str(minimal_toml()).expect("parses");
+        p.domain = "rust".to_string();
+        assert_eq!(p.stack_base(), Some("rust"));
+        p.domain = "rust:seaorm".to_string();
+        assert_eq!(p.stack_base(), Some("rust"));
+        p.domain = "rust:dioxus".to_string();
+        assert_eq!(p.stack_base(), Some("rust"));
+    }
+}
