@@ -181,15 +181,15 @@ fn check_file(
         .or_default()
         .push(path.to_path_buf());
 
-    // Id format: DOMAIN-CONCEPT-N (uppercase letters/digits in segments,
-    // last segment is all digits).
+    // Id format: AREA-TOPIC-NUMBER (at least three uppercase segments,
+    // trailing segment all digits).
     if !is_valid_id_format(&principle.id) {
         violations.push(Violation {
             file: path.to_path_buf(),
             id: principle.id.clone(),
             kind: "id-format",
             message: format!(
-                "id `{}` must match DOMAIN-CONCEPT-N (uppercase segments, trailing number); e.g. RUST-DOMAIN-4 or TS-NEXT-CONSENT-GATED-1",
+                "id `{}` must match AREA-TOPIC-NUMBER (at least three uppercase segments, trailing number); e.g. RUST-DOMAIN-4 or TS-NEXT-CONSENT-GATED-1",
                 principle.id
             ),
         });
@@ -256,13 +256,19 @@ fn check_file(
     let _ = has_backtick;
 }
 
-/// Validate the canonical id format. Examples that pass:
+/// Validate the canonical id format: AREA-TOPIC-NUMBER. Examples that pass:
 /// `RUST-DOMAIN-4`, `TS-NEXT-CONSENT-GATED-1`, `CAMERATA-USER-GUIDE-1`.
-/// Rules: split on `-`, every segment non-empty; every segment uppercase
-/// letters/digits only; the LAST segment must be all digits.
+/// Rules: split on `-`, at least THREE segments, every segment non-empty,
+/// every segment uppercase letters/digits only, the LAST segment all digits.
+///
+/// The three-segment floor is what carries the AREA-TOPIC-NUMBER convention:
+/// AREA names the cluster (RUST, ARCH, ORCH, ...), TOPIC names the concept
+/// inside it (DOMAIN, CONTEXT-OVERRIDE, ...), and NUMBER disambiguates
+/// successive rules in the same topic. Two-segment ids like `RUST-4` collapse
+/// AREA and TOPIC, which the library has never used and the format rejects.
 fn is_valid_id_format(id: &str) -> bool {
     let segments: Vec<&str> = id.split('-').collect();
-    if segments.len() < 2 {
+    if segments.len() < 3 {
         return false;
     }
     for seg in &segments {
@@ -312,19 +318,23 @@ mod tests {
             "rust-domain-4",          // lowercase
             "RUST_DOMAIN_4",          // underscores
             "RUST-DOMAIN",            // no trailing number
-            "RUST-4",                 // single segment + number is allowed length=2
-            "RUST-",                  // empty trailing segment
-            "-RUST-1",                // empty leading segment
-            "RUST--1",                // consecutive dashes
+            "RUST-4",                 // only two segments (AREA-NUMBER, no TOPIC)
+            "RUST-DOMAIN-",           // empty trailing segment
+            "-RUST-DOMAIN-1",         // empty leading segment
+            "RUST--DOMAIN-1",         // consecutive dashes
             "RUST-DOMAIN-1a",         // mixed in last segment
         ] {
-            // Allow "RUST-4" through (it IS valid by the rules above — DOMAIN segment + number).
-            if bad == "RUST-4" {
-                assert!(is_valid_id_format(bad), "RUST-4 is a valid 2-segment id");
-                continue;
-            }
             assert!(!is_valid_id_format(bad), "expected to reject {bad:?}");
         }
+    }
+
+    #[test]
+    fn id_format_requires_at_least_three_segments() {
+        // AREA-TOPIC-NUMBER is the canonical shape — three segments is the
+        // floor. Two-segment shapes collapse AREA and TOPIC and are not
+        // used anywhere in the library.
+        assert!(!is_valid_id_format("RUST-4"));
+        assert!(is_valid_id_format("RUST-DOMAIN-4"));
     }
 
     /// Write `text` into a tempdir as `rule.toml`, run check_file on it, and

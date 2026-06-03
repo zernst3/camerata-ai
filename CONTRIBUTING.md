@@ -29,7 +29,7 @@ Every TOML file under `principles/<domain>/` must satisfy the schema in [`src/pr
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | string | `DOMAIN-CONCEPT-N` format, uppercase, unique across the entire library. |
+| `id` | string | `AREA-TOPIC-NUMBER` format, uppercase, unique across the entire library. See the id format section below. |
 | `title` | string | One-sentence statement of the commit. No semicolons or multi-clause titles. |
 | `tag` | enum | `universal`, `stack`, or `choice`. |
 | `domain` | string | `*` for universal rules; otherwise a capability (`sql`, `permissions`, `ui`) or stack profile (`rust`, `rust:dioxus`, `javascript:next`). Use the full name, not an abbreviation (see style rule on domain naming). |
@@ -46,6 +46,28 @@ The linter rejects schema violations on every PR. It also runs three content che
 
 ---
 
+## Id format: AREA-TOPIC-NUMBER
+
+Every rule id has the shape `AREA-TOPIC-NUMBER`. The linter rejects anything that does not match it, and the format is the same one cited in PR comments, commit messages, and CONVENTIONS.md emit blocks.
+
+- **AREA** names the cluster the rule belongs to: `RUST`, `ARCH`, `ORCH`, `PROC`, `SPIRIT`, `CAMERATA`, `JAVASCRIPT`, and so on. One short uppercase word.
+- **TOPIC** names the concept inside the area: `DOMAIN`, `CONTEXT-OVERRIDE`, `STRICT-LAYERING`, `USER-GUIDE`, and so on. May itself contain dashes (so an id can have more than three segments).
+- **NUMBER** is a trailing integer that disambiguates successive rules in the same topic, starting at `1`.
+
+Mechanical rules the linter enforces:
+
+- At least three dash-separated segments.
+- Every segment is non-empty and contains only uppercase ASCII letters or digits.
+- The final segment is all digits.
+
+Valid: `RUST-DOMAIN-4`, `ARCH-IAC-1`, `ORCH-CONTEXT-OVERRIDE-1`, `CAMERATA-USER-GUIDE-1`, `TS-NEXT-CONSENT-GATED-1`.
+
+Invalid: `RUST-4` (collapses AREA and TOPIC), `rust-domain-4` (lowercase), `RUST_DOMAIN_4` (underscores), `RUST-DOMAIN` (no trailing number), `RUST-DOMAIN-1a` (mixed in last segment).
+
+The three-segment floor is what carries the convention: two-segment shapes like `RUST-4` collapse AREA into TOPIC, which the library has never used. The linter rejects them so PRs cannot silently introduce a different shape.
+
+---
+
 ## Field audiences
 
 Camerata rules serve two distinct audiences with opposite needs. Every field below is designed for one audience or the other. Writing a field for the wrong audience is the most common precision error.
@@ -58,7 +80,7 @@ The two audiences have opposite needs. The architect benefits from rich context:
 
 | Field | Audience | Spirit | Voice |
 |---|---|---|---|
-| `id` | both | Stable identity citable in PR comments. | `DOMAIN-CONCEPT-N`, uppercase. |
+| `id` | both | Stable identity citable in PR comments. | `AREA-TOPIC-NUMBER`, uppercase. |
 | `title` | both | Single-commit headline of the directive. | Property-shaped, no semicolons, no multi-clause "and." |
 | `tag` | architect | Classifies how the rule applies (universal / stack / choice). Drives selection UI. | Enum value. |
 | `domain` | architect | Scope of applicability. Drives routing to per-domain output files. | String matching a domain or capability identifier. |
