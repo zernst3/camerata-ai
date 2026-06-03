@@ -7,7 +7,7 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Every decision (architectural, process, convention, even small) is written to a persistent artifact the moment it is made: a conventions file with a rule ID for code, a dated decision doc for process."
-why = "Decisions made only in conversation evaporate; agents cannot cite them and humans re-derive them. A multi-actor, multi-session system depends on durable artifacts, not memory."
+why = "Decisions made only in conversation evaporate; agents cannot cite them and humans re-derive them. A multi-actor, multi-session system depends on durable artifacts, not memory. Batching documentation into a later pass reliably causes drift and re-litigation, because memory fades faster than the documentation pass arrives, so by the time the batched pass runs the decisions have already been silently re-derived or contradicted in subsequent work."
 alternatives = [
-    "decisions accumulate in conversation as they are made and are written to durable artifacts in a documentation pass later, batched by week, sprint, or feature shipment (reliably causes drift and re-litigation as memory fades faster than the documentation pass arrives)",
+    "decisions accumulate in conversation as they are made and are written to durable artifacts in a documentation pass later, batched by week, sprint, or feature shipment",
 ]
