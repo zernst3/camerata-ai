@@ -7,7 +7,7 @@ enforcement = "mechanical"
 default = true
 stance = "default"
 summary = "Iterating a collection with a per-item database call is banned. Use a single batched query (or 1-2 queries with a join / eager-load), never N+1."
-why = "N+1 access patterns cause 10-100× slowdowns at scale and are invisible at small data sizes."
+why = "N+1 access patterns cause 10-100x slowdowns at scale and are invisible at small data sizes. Looping over a fetched list and issuing a database call per item is the textbook N+1 footgun: it looks correct in a unit test with five rows, then degrades by orders of magnitude as production data grows, with no warning until the slowdown surfaces in latency dashboards or user complaints."
 alternatives = [
-    "fetch a list, then loop and fetch related rows one-by-one (the textbook N+1 footgun)",
+    "code fetches a list of rows and then loops over the list, issuing a database call per item to fetch related data, rather than using a single batched query or an eager-load with a join",
 ]

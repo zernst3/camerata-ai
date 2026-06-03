@@ -7,7 +7,7 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "Split breaking changes (drop/rename/NOT-NULL) across releases: expand (add new, write both), migrate reads, then contract (drop old). Migrations are schema-only; never seed user data in a migration."
-why = "With live users, a single deploy can't be paired with a breaking schema change without an incompatibility window."
+why = "With live users, a single deploy can't be paired with a breaking schema change without an incompatibility window. Shipping a breaking schema change in a single deploy opens a window where running application code expects one schema shape and the database has another, and any request that hits during that window fails in a way that the application cannot defend against."
 alternatives = [
-    "single-deploy breaking change (opens an incompatibility window for live users)",
+    "breaking schema changes (drop, rename, NOT-NULL additions) ship in a single deploy without an expand-then-contract split, applying the destructive change in the same release as the application code that depends on the new shape",
 ]

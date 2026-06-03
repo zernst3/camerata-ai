@@ -7,7 +7,7 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "For permission-gated UIs: never render a UI action the user's permissions can't execute. Gate each affordance's render on the same permission its endpoint requires. A button that 403s drives the user to an error page; that redirect IS the bug."
-why = "The logical extension of 'a missing permission is a config task': the code's job is to not offer what the user can't do."
+why = "The logical extension of 'a missing permission is a config task': the code's job is to not offer what the user can't do. Rendering every action regardless of the user's permissions and relying on the endpoint to reject unauthorized attempts produces a 403 then error-page redirect on click, and that redirect IS the bug the rule exists to prevent; it's a poor user experience and reveals which capabilities exist without granting them."
 alternatives = [
-    "render all actions and let the endpoint reject (403 -> error-page redirect is itself the bug)",
+    "the UI renders every action regardless of the current user's permissions, and unauthorized clicks are caught at the endpoint with a 403 response that drives the user to an error page",
 ]

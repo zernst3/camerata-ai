@@ -7,7 +7,7 @@ enforcement = "mechanical"
 default = true
 stance = "default"
 summary = "Each resource response carries server-computed permission flags (e.g. _can: { manage: true }); the UI gates affordances on those flags and never recomputes permission logic client-side. Block client-side permission introspection with lint."
-why = "UI can't drift from server enforcement when both read the same server-computed truth; avoids leaking RBAC internals to the browser."
+why = "UI can't drift from server enforcement when both read the same server-computed truth; avoids leaking RBAC internals to the browser. Client-side permission introspection lets the UI drift from server enforcement (the two evolve independently and eventually disagree), and it leaks the project's RBAC internals to the browser, where they become part of the public attack surface."
 alternatives = [
-    "client-side permission introspection (UI drifts from server; leaks RBAC internals)",
+    "the UI inspects raw permission codes or role membership on the client and re-implements the authorization decision in browser code, rather than gating on server-computed permission flags carried by each resource response",
 ]
