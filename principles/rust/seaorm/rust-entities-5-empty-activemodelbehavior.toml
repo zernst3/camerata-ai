@@ -7,8 +7,8 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Each entity includes the ActiveModelBehavior impl block on its ActiveModel, left empty by default. Hooks are added deliberately when an entity actually needs one. The empty impl block is never deleted, because SeaORM's official entity-format guidance requires its presence on every entity even when no hooks are defined."
-why = "The vast majority of entities need no hooks; stubbing concrete hook bodies in across the codebase adds noise without value. The empty impl block itself, however, is not optional: SeaORM's documentation explicitly directs entity authors not to delete the ActiveModelBehavior impl block even when it is empty, so the rule pairs the empty-by-default position with a never-delete clause on the block itself."
+why = "The vast majority of entities need no hooks; stubbing concrete hook bodies in across the codebase adds noise without value, since reviewer attention is then spent on placeholder hooks that do not run. The empty impl block itself, however, is not optional: SeaORM's documentation explicitly directs entity authors not to delete the ActiveModelBehavior impl block even when it is empty, so the rule pairs the empty-by-default position with a never-delete clause on the block itself. The first alternative (stub bodies everywhere) trades the rule's silence for visual uniformity but spends reviewer attention on noise; the second alternative (delete the block when empty) contradicts the SeaORM guidance and removes part of the entity's required surface."
 alternatives = [
-    "stub concrete hook bodies on every entity even when the entity needs none (noise without function; reviewer attention is spent on placeholder hooks that do not run)",
-    "delete the empty ActiveModelBehavior impl block on entities without hooks (contradicts the SeaORM entity-format guidance; the impl block is part of the entity's required surface even when empty)",
+    "every entity carries stub concrete hook bodies on its ActiveModelBehavior impl, regardless of whether the entity actually needs a hook",
+    "entities without hooks omit the ActiveModelBehavior impl block on their ActiveModel entirely instead of keeping an empty one",
 ]
