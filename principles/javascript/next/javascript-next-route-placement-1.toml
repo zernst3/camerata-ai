@@ -7,7 +7,7 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Pages live under app/(gated)/(main)/... (for the main chrome) or app/(gated)/admin/... (for admin chrome). Pages placed directly under app/(main)/, app/admin/, or outside (gated)/ render with only the root layout and miss their intended auth wrapper, header, and sidebar."
-why = "Route groups in App Router are how layout composition is opt-in. Placing pages outside the gated group silently skips the auth checks and layout chrome the rest of the app assumes. The error is invisible until a user reaches the page."
+why = "Route groups in App Router are how layout composition is opt-in. Placing pages outside the gated group silently skips the auth checks and layout chrome the rest of the app assumes. The error is invisible until a user reaches the page. Allowing pages to live anywhere under app/ that is convenient trades the structural guarantee for short-term ergonomics; the page that ends up outside (gated) bypasses auth and layout wiring entirely, the build still succeeds, and the bug surfaces in production on whichever page slipped through rather than at compile time."
 alternatives = [
-    "place pages anywhere in app/ (silently bypasses auth and layout wiring; the bug surfaces in production for whichever page slipped through)",
+    "pages live anywhere under app/ that is convenient at the time, with no required (gated) route group housing all authenticated pages",
 ]

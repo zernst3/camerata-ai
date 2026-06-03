@@ -24,8 +24,8 @@ layer values: universal | language | library | framework (the precedence order).
 enforcement values: prose | structured | mechanical (what kind of artifact the rule emits when installed).
 
 Every rule states a default, a why it was chosen, and the alternatives considered, so a reader can disagree on the merits rather than guess at intent."""
-why = "Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors. A new file in the right folder plus this template is the whole bar."
+why = "Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors. A new file in the right folder plus this template is the whole bar. Keeping the schema only in CONTRIBUTING.md leaves it invisible to contributors browsing the GUI, and the doc drifts from the actual TOML shape over time because nothing forces them to stay aligned. Asking new contributors to infer the schema by reading existing rule files works while the library is small but breaks once the rule count grows enough that the conventions are scattered across many files, and it slows every new contributor's first PR by making them reverse-engineer the contract."
 alternatives = [
-    "keep the schema only in CONTRIBUTING.md (drifts from code; invisible to contributors browsing the GUI)",
-    "infer the schema from existing files (works for small libraries; breaks at scale and slows new contributors)",
+    "the principle schema is documented only in CONTRIBUTING.md; the GUI itself does not surface a rule that explains how to add a new principle",
+    "new contributors learn the principle schema by reading existing files in principles/ and inferring the conventions, with no in-tool reference rule and no centralized schema document",
 ]

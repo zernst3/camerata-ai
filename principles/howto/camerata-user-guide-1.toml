@@ -122,8 +122,8 @@ A saved snapshot of what you selected, stored by id. Resilient to canonical rule
 
 The CAMERATA-QA.md file in the repo contains a numbered trace of every UX element. Cite a section number in any bug report you file.
 """
-why = "Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README. The right pane already renders principle text well; reusing that surface keeps the chrome minimal."
+why = "Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README. The right pane already renders principle text well; reusing that surface keeps the chrome minimal. Documenting only in the README forces a newcomer to leave the tool to learn how it works, which they often will not do on first launch; the cost is felt as confusion at the GUI without an obvious recovery path. Building a separate Help menu or dedicated help window adds chrome for content the principle-detail pane already renders well, and the help surface then has to be kept in sync with the actual UX through a second update path."
 alternatives = [
-    "documentation only in the README (newcomers have to leave the tool to learn it)",
-    "a separate Help menu or window (more chrome, same information, harder to keep in sync with the actual UX)",
+    "the camerata user guide lives only in the repository README; the GUI itself does not surface the guide in-tool, and users learn the workflow by reading the README before launch",
+    "the user guide ships as a separate Help menu or dedicated help window in the GUI, with its own chrome and rendering surface distinct from the principle-detail pane",
 ]

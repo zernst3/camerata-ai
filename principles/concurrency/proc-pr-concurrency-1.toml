@@ -7,7 +7,7 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "PRs touching shared mutable state must document the locking strategy and concurrency testing in a required template section. Skippable for read-only / UI / docs PRs."
-why = "Forcing authors to make the concurrency analysis visible and required catches races that review otherwise misses."
+why = "Forcing authors to make the concurrency analysis visible and required catches races that review otherwise misses. Without a required template section, the concurrency story depends on whatever discipline the author and reviewer happen to bring to the diff that day, and races slip through review by default precisely because nothing on the PR surface forces the analysis to be written down."
 alternatives = [
-    "no required concurrency section (races slip through review)",
+    "PRs touching shared mutable state are reviewed without a required template section calling out the locking strategy or concurrency testing; the concurrency story is left to whatever the author chooses to include in the description",
 ]
