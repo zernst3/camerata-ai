@@ -7,9 +7,9 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "Track spend in a rolling window against a safety threshold, with per-session caps, and self-check periodically during a run. A wrapper enforces hard limits before invoking the model."
-why = "An unattended routine needs a real ceiling; per-run caps prevent runaway, the rolling cap is the operational guard. (Thresholds and caps are your numbers.)"
+why = "An unattended routine needs a real ceiling; per-run caps prevent runaway, the rolling cap is the operational guard. (Thresholds and caps are your numbers.) Running with no budget caps is acceptable only for attended, short runs where a human can intervene before spend escalates; an unattended routine has neither property, and one stuck loop or runaway request pattern can burn arbitrarily much money before the next human glance at the monitor."
 alternatives = [
-    "no budget caps (acceptable only for attended, short runs)",
+    "the autonomous run operates with no budget caps and no rolling-window safety threshold",
 ]
 
 [choice]

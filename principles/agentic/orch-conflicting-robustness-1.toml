@@ -7,9 +7,9 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "When options are each robust against different failures (rigid constraints vs. bad data; flexibility vs. changing requirements), name both failure modes and pause to escalate the decision to a human reviewer. That is a genuine tradeoff, not a clear winner. Let the human pick which failure mode their context cares about more."
-why = "Robustness is plural; picking one dimension unilaterally silently accepts the other failure mode."
+why = "Robustness is plural; picking one dimension unilaterally silently accepts the other failure mode. Treating the first robust option encountered as the winner reduces the choice to whichever option the search order surfaced first rather than a real judgment, and silently accepts the unaddressed failure mode every time. Letting the agent pick based on which failure mode has cheaper recovery in the project's context is a defensible heuristic but rarely has enough domain knowledge to judge recovery cost accurately; that lens is exactly the one a human reviewer should apply. Adopting every option by combining their protections in the same artifact is sometimes possible but doubles the complexity surface and trades a single decision for ongoing maintenance of every code path, which is usually a worse deal than picking one consciously."
 alternatives = [
-    "when options are each robust against different failures, treat the first robust option the agent encounters as the winner and proceed (silently accepts the unaddressed failure mode; the choice becomes 'whichever option the search order surfaced first' rather than a real judgment)",
-    "when options are each robust against different failures, the agent picks autonomously based on which option's failure mode has a cheaper recovery in the project's context (defensible heuristic, but rarely has enough domain knowledge to judge recovery cost accurately; this is exactly the lens a human reviewer should apply)",
-    "when options are each robust against different failures, the agent adopts every option by combining their protections in the same artifact rather than picking one (sometimes possible; doubles the complexity surface and trades a single decision for ongoing maintenance of every code path)",
+    "when options are each robust against different failures, the agent treats the first robust option it encounters as the winner and proceeds",
+    "when options are each robust against different failures, the agent picks autonomously based on which option's failure mode has a cheaper recovery in the project's context",
+    "when options are each robust against different failures, the agent combines every option's protections in the same artifact rather than picking one",
 ]

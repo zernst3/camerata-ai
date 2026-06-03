@@ -7,10 +7,10 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "Run high-volume mechanical work (applying documented rules, repetitive porting) on a cheaper model; reserve the top model for genuinely new decisions and one-way-door validation."
-why = "Top-tier judgment where it matters (data-model-shaping calls), cheap throughput on the bulk."
+why = "Top-tier judgment where it matters (data-model-shaping calls), cheap throughput on the bulk. Running the top model for everything multiplies cost without changing the human-escalation outcomes, since the bulk of agentic work is applying documented rules and other mechanical tasks where a cheaper model produces the same result. Running the cheap model for everything saves cost on the bulk but misses one-way-door misclassifications, where a cheaper model can confidently produce a structurally wrong answer on the rare hard call and ship it past the clear-winner test."
 alternatives = [
-    "top model for everything (higher cost, same human-escalation outcomes)",
-    "cheap model for everything (misses one-way-door misclassifications)",
+    "every step of the autonomous run uses the top-tier model, regardless of whether the step is bulk mechanical work or a genuinely new decision",
+    "every step of the autonomous run uses the cheaper model, regardless of whether the step is bulk mechanical work or a one-way-door decision",
 ]
 
 [choice]

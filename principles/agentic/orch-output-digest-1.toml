@@ -7,10 +7,10 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "Autonomous routines produce local artifacts (commits, state files) and write to a shared inbox. A single daily consolidator ranks all routines' output by priority and sends one digest, rather than each routine pinging directly. Critical items break through this cadence and notify immediately."
-why = "Signal-to-noise: one clean ranked digest is read; N direct pings get muted. A fail-safe (alert if the consolidator hasn't run in over N hours) catches silent failure of the digest itself."
+why = "Signal-to-noise: one clean ranked digest is read; N direct pings get muted. A fail-safe (alert if the consolidator hasn't run in over N hours) catches silent failure of the digest itself. Per-routine direct notifications are noisier by construction, because each routine notifies on its own cadence and priority, and the human ends up either filtering manually or muting everything once the noise crosses the attention threshold. Batching everything with no prioritization preserves volume control but loses urgency, because critical items sit in the same queue as routine output and the routine output drowns the signal that needed to break through."
 alternatives = [
-    "per-routine direct notifications (noisier)",
-    "batch everything with no prioritization (loses urgency)",
+    "each autonomous routine sends its own direct notification on its own cadence, with no consolidator step in between",
+    "all autonomous-routine output is batched into one consolidated stream with no ranking or prioritization, and critical items wait for the next batch alongside routine output",
 ]
 
 [choice]

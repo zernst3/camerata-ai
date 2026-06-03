@@ -7,7 +7,7 @@ enforcement = "mechanical"
 default = true
 stance = "default"
 summary = "No autonomously-generated code reaches a shared/prod environment without passing the local quality bar (compile + lint clean + tests green); schema changes pass a migration-safety check. Multiple environments (dev/staging/prod) gate changes before they reach users."
-why = "Preventive gatekeeping catches issues before they compound downstream, where they're far more expensive. User-end testing capacity is cheaper to scale than reviewer capacity."
+why = "Preventive gatekeeping catches issues before they compound downstream, where they're far more expensive. User-end testing capacity is cheaper to scale than reviewer capacity. The trust-and-ship alternative shifts the discovery surface from local CI to live users; issues that would have failed a compile, a lint, a test, or a migration-safety check at the cheapest possible moment instead surface in production, where they cost more to triage, more to roll back, and consume user trust in the process."
 alternatives = [
-    "trust-and-ship with post-hoc monitoring (issues surface in front of users)",
+    "autonomously generated code ships directly to the shared/prod environment without passing a local quality bar, and issues are caught by post-hoc monitoring in production",
 ]
