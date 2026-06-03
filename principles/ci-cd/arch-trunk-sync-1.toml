@@ -7,10 +7,10 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "Release-line fixes stay on the release branch until ship, then sync back to trunk in ONE merge-commit, not per-fix cherry-picks."
-why = "Per-fix mirroring creates hidden divergence (a fix lands on release, the cherry-pick to main is forgotten, trunk silently lacks it)."
+why = "Per-fix mirroring creates hidden divergence (a fix lands on release, the cherry-pick to main is forgotten, trunk silently lacks it). Continuously cherry-picking each fix to trunk depends on every cherry-pick happening in lockstep with the release-branch fix; one missed cherry-pick produces a silent divergence that surfaces months later when trunk fails to reproduce a fix that everyone assumed had landed. A trunk-only model with no release branches avoids the divergence entirely but loses the stabilization surface release branches provide, so any bug found late in the release cycle has to be fixed against an actively-moving trunk."
 alternatives = [
-    "continuous cherry-pick of each fix to trunk (hidden divergence when one is forgotten)",
-    "trunk-only (no release branches)",
+    "each release-line fix is cherry-picked to trunk continuously as it lands on the release branch, with no end-of-release sync step",
+    "the project has no release branches at all; trunk is the only line and every change ships from it",
 ]
 
 [choice]
