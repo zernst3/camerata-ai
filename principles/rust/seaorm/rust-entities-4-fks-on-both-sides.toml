@@ -7,9 +7,9 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Declare each foreign-key relation on both entities: belongs_to on the child plus has_one or has_many on the parent. Variant naming: belongs_to uses the parent singular; has_one uses the child singular; has_many uses the child plural."
-why = "Compile-time validation of the full FK graph, plus find_related working in both directions. The result is self-documenting."
+why = "Compile-time validation of the full FK graph, plus find_related working in both directions. The result is self-documenting. Declaring relations only on one side (belongs_to on the child without the reverse on the parent) loses compile-time FK-graph validation in the reverse direction and disables find_related traversal from parent to child, so every parent-to-child read has to be hand-built. Relying on database-level FK enforcement and skipping ORM relation declarations entirely means the DB still rejects bad writes, but find_related ergonomics are gone and every read that needs joined data has to be hand-built, which is exactly the cost the bidirectional declarations were paying down. Declaring relations only as needed for the current code leaves the FK graph perpetually incomplete: each new feature that wants the missing direction triggers a new annotation, and the graph stays partial until every read shape is exercised in code."
 alternatives = [
-    "one-sided declaration: only belongs_to on the child, no reverse on the parent (loses compile-time FK-graph validation in the reverse direction and disables find_related traversal from parent to child)",
-    "rely on database-level FK enforcement only and skip the ORM relation declarations entirely (the DB still rejects bad writes, but find_related ergonomics are gone and every read that needs joined data has to be hand-built)",
-    "declare relations only as needed for the current code (each new feature that wants the missing direction triggers a new annotation; the FK graph stays incomplete until every read shape is exercised in code)",
+    "foreign-key relations are declared only on the child side (belongs_to) and not on the parent side, so the FK graph in the entities crate is one-directional",
+    "the entities crate declares no foreign-key relations at all and relies entirely on database-level FK enforcement, so all joined reads are hand-built rather than going through find_related",
+    "foreign-key relations are added on each side only when the current code path needs them, so the FK graph in the entities crate grows only as features exercise specific traversal directions",
 ]

@@ -7,8 +7,8 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Entity Models do not derive Serialize/Deserialize, which forces every API response through an explicit DTO plus mapper."
-why = "The compiler then enforces the hexagonal boundary at compile time: code physically cannot JSON-encode a Model directly."
+why = "The compiler then enforces the hexagonal boundary at compile time: code physically cannot JSON-encode a Model directly. Deriving serde on the Models removes that compile-time enforcement and lets code encode Models directly to JSON, which breaks the hexagonal boundary the rule is paying for. Allowing per-entity opt-in to serde derives moves the decision to the wrong level: whether a payload shape gets serialized is a per-endpoint DTO question, not a per-Model question, and the per-Model opt-in collapses those two decisions into one."
 alternatives = [
-    "serde on Models (lets code encode Models directly, breaking the boundary)",
-    "per-entity opt-in (should be a per-endpoint DTO decision, not per-Model)",
+    "the SeaORM entity Models derive Serialize and Deserialize and can be JSON-encoded directly without going through an explicit DTO plus mapper",
+    "individual entity Models opt in to deriving Serialize and Deserialize on a per-entity basis, while other entities remain non-serde",
 ]
