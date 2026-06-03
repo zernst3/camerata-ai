@@ -23,10 +23,14 @@ transaction is owned, not Clone) and produces silent partial-commit failures whe
 to wrap its body. Loud failures (compile error, visible None, downcast panic) beat silent failures \
 (half-updated database rows with no error). Matches the explicit-tx convention every major Rust ORM \
 (sqlx, diesel-async, SeaORM, tokio-postgres) has converged on; future maintainers recognize the shape \
-immediately.
+immediately. Making the repository generic over Tx is bureaucratically compile-time correct but \
+forces every consumer to carry Tx through the type graph, and the ceremony compounds badly across \
+service composition. Letting the ORM type leak into the domain trait violates the hexagonal-architecture \
+commitment that domain has zero framework deps; it can feel tempting in TS where import-type is free, \
+but it is structurally wrong in Rust because the domain crate then transitively depends on the ORM.
 """
 alternatives = [
-    "Generic over Tx (forces every consumer to carry Tx through the type graph; bureaucratic compile-time correct, but the ceremony compounds badly)",
-    "Closure-based ambient context via task-local storage (cleaner repo trait, but silent partial-commit failures when the service body isn't wrapped; SeaORM's owned tx fights task-local's Clone requirement)",
-    "ORM type leaking into domain trait (violates the hexagonal-architecture commitment that domain has zero framework deps; tempting in TS where import-type is free, structurally wrong in Rust)",
+    "Repository write methods take a generic Tx parameter, and every consumer of the repository must carry that generic through its type graph",
+    "Transactional context is provided as a closure-based ambient via task-local storage, so the repository trait carries no transaction parameter and the transaction is read from task-local state at call time",
+    "Repository write methods take a parameter typed as the concrete ORM transaction type directly, with the ORM type appearing in the domain trait surface",
 ]

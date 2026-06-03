@@ -7,8 +7,8 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "One domain crate. Bounded contexts are internal modules, not separate crates."
-why = "At small/medium scale (tens of entities), no real bounded-context seams have emerged; splitting prematurely adds cyclic-dependency friction, and un-splitting later is harder than splitting later."
+why = "At small/medium scale (tens of entities), no real bounded-context seams have emerged; splitting prematurely adds cyclic-dependency friction, and un-splitting later is harder than splitting later. Splitting into per-context crates from day one is a premature split at this scale: cyclic-dependency friction accumulates before any real bounded-context seam has emerged, and the cost is paid every day on crate-boundary refactors that would have been free inside a single module. A single mega-module with no bounded-context substructure inverts the failure mode: god-shape, hard to navigate as the entity count grows, and the absence of any internal structure becomes its own friction as soon as the domain is large enough that 'where does this go' becomes a real question."
 alternatives = [
-    "per-context crates from day one (premature split at this scale; cyclic-dependency friction accumulates before any real bounded-context seam has emerged)",
-    "single mega-module with no bounded-context substructure (god-shape; hard to navigate as the entity count grows; the absence of any internal structure becomes its own friction)",
+    "the project starts with a separate crate per bounded context from day one, and bounded contexts live as sibling crates rather than as modules in a shared domain crate",
+    "the project keeps a single domain crate but does not subdivide it into modules by bounded context; all domain code lives in one flat module structure regardless of context",
 ]

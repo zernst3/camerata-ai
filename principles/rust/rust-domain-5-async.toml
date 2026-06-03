@@ -7,8 +7,8 @@ enforcement = "prose"
 default = true
 stance = "default"
 summary = "I/O functions, repo traits, service methods, and handlers are async; no block_on in layered code."
-why = "The Rust I/O ecosystem (SeaORM, Axum, tokio) is async-first; mixing sync wrappers around async runtimes is friction and a perf loss."
+why = "The Rust I/O ecosystem (SeaORM, Axum, tokio) is async-first; mixing sync wrappers around async runtimes is friction and a perf loss. Going sync-first and using block_on at the layer boundaries fights the ecosystem at every layer, produces measurable perf regressions, and creates the runtime-pinning bugs that block_on-inside-an-async-context is famous for. Maintaining dual sync and async APIs doubles the public surface and forces every consumer to choose which variant to call, which is a recurring point of confusion and a maintenance burden for very little gain in the Rust ecosystem."
 alternatives = [
-    "sync-first plus block_on (friction and perf loss)",
-    "dual sync/async APIs (maintenance burden)",
+    "the project's I/O functions, repo traits, service methods, and handlers are sync, and async runtime use is wrapped in block_on at the layer boundaries",
+    "the project exposes both sync and async variants of its I/O functions, repo traits, service methods, and handlers as parallel public APIs",
 ]

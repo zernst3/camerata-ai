@@ -7,8 +7,8 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Each layer's crate defines its own thiserror enum (DomainError, RepositoryError, ServiceError, …) with explicit From impls at boundaries. anyhow is reserved for application edges (binaries)."
-why = "Typed errors give callers compile-time knowledge of failure modes and keep each layer's failure vocabulary self-contained."
+why = "Typed errors give callers compile-time knowledge of failure modes and keep each layer's failure vocabulary self-contained. A single global error enum couples every layer to the same vocabulary, removes boundary discipline, and pushes every layer's failure modes into a shared namespace where they accumulate forever. Using anyhow everywhere loses typed failure information at boundaries; callers cannot match on specific failure modes and the type system stops helping with error handling, which is exactly the guarantee thiserror-per-layer gives back."
 alternatives = [
-    "a single global error enum (couples layers, no boundary discipline)",
-    "anyhow everywhere (loses typed failure information at boundaries)",
+    "the workspace defines a single global error enum that every layer shares, rather than a layer-specific thiserror enum at each crate boundary",
+    "every layer uses anyhow for its error type, rather than reserving anyhow for the application-edge binaries and using typed thiserror enums in libraries",
 ]

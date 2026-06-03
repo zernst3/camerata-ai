@@ -7,9 +7,9 @@ enforcement = "structured"
 default = true
 stance = "default"
 summary = "Constrained string types are newtypes with a fallible constructor (Email::try_new); the type itself is proof of validation. Free-form text stays as String."
-why = "Removes 'is this validated?' as a question at every call site; moves it from runtime to compile time."
+why = "Removes 'is this validated?' as a question at every call site; moves it from runtime to compile time. Validating at each call site is repetitive and easy to miss, since the rule's existence becomes a discipline check at every consumer rather than a guarantee carried by the type. A metadata tag on a plain String holds the validation status at runtime but not at compile time, so the type system stops helping and a forgotten check produces a silent invalid-state bug rather than a build failure. Treating validated and raw text as the same type loses the guarantee entirely; there is no signal in the type system that a string was ever validated, and downstream consumers must re-check or trust."
 alternatives = [
-    "validate at each call site (repetitive, easy to miss)",
-    "a metadata tag on a plain String (runtime, not compile-time)",
-    "no distinction between validated and raw text (loses the guarantee)",
+    "every call site that needs a validated string runs the validation inline at the call site, and the type system carries no distinction between validated and raw text",
+    "validation status is recorded as a metadata tag attached to a plain String value at runtime, rather than as a distinct compile-time type",
+    "the codebase makes no distinction between validated and raw text; all string-shaped values use the same String type regardless of whether they have been checked",
 ]
