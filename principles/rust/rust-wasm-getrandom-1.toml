@@ -1,0 +1,16 @@
+id = "RUST-WASM-GETRANDOM-1"
+title = "Enable getrandom's wasm_js feature for wasm32 builds via target-cfg direct deps"
+tag = "stack"
+domain = "rust"
+layer = "language"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "When a crate compiles to wasm32-unknown-unknown and its dependency graph transitively includes getrandom (common sources: ahash, uuid with default features, rand, hashbrown, most async runtimes), the wasm32 build fails to compile unless getrandom's wasm_js Cargo feature is enabled. Enable it with target-cfg direct dependency declarations in the consuming crate: a dependencies table guarded by a wasm32 target-arch cfg that lists getrandom 0.3 with the wasm_js feature, plus a second renamed entry pulling getrandom 0.4 with the same feature when both major versions coexist in the graph, plus uuid with its js feature if uuid is present. Cargo feature unification then propagates the feature to every transitive user of each version. Setting the rustc cfg of the same name via RUSTFLAGS does not work for getrandom 0.3.4 and later or 0.4.2 and later: those versions gate on the Cargo feature, not the rustc cfg."
+why = "getrandom 0.3 and 0.4 both refuse to compile on wasm32-unknown-unknown without an explicit backend choice, and the canonical browser backend is wasm_js. The feature is checked as a Cargo feature, not as a rustc cfg of the same name, so setting that cfg through RUSTFLAGS silently does nothing and leaves the original compile error in place, which sends you debugging the wrong layer for an hour. A target-cfg direct dependency confines the feature to wasm32 builds, so native (server-side) builds are not forced onto the browser RNG backend, which they neither need nor want. The package-rename trick is the standard Cargo mechanism for declaring two major versions of one crate side by side, and both need the feature because feature unification operates per major version. The rule matters broadly because in practice nearly every non-trivial Rust crate that reaches the browser pulls getrandom in transitively. The RUSTFLAGS approach is the most tempting and the most broken, since it looks like it should work and fails silently. Putting the feature on a workspace-level getrandom dependency pollutes native builds with the wasm backend. Patching getrandom via a fork is far more maintenance than a short target-cfg Cargo block. Swapping out every transitive user of getrandom is rarely even possible."
+alternatives = [
+    "Set the rustc cfg via RUSTFLAGS, either globally or in a wasm32-unknown-unknown rustflags table in the cargo config, expecting that to select getrandom's browser backend.",
+    "Add getrandom with the wasm_js feature to the workspace dependencies table and inherit it in every crate, applying the feature to native and wasm builds alike.",
+    "Patch getrandom through a crates-io patch to a fork that selects the backend automatically based on the compile target.",
+    "Replace every transitive user of getrandom in the wasm32 graph with an alternative crate that does not depend on it.",
+]

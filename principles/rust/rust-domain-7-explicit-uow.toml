@@ -12,7 +12,12 @@ Option of UnitOfWork (a marker trait defined in the domain crate so the trait su
 no concrete ORM or database type). Infrastructure implements UnitOfWork on its concrete \
 transaction wrapper and downcasts internally via Any to access the underlying ORM transaction. \
 Services wrap multi-write operations in a closure run on the unit of work and pass Some(uow) \
-to each participating repo call.
+to each participating repo call. When the unit-of-work provider that services inject is held as a \
+trait object for dependency injection (an Arc of dyn provider), that provider trait must stay \
+object-safe: a generic run method makes the trait non-object-safe, so the Arc-of-dyn-provider DI \
+shape will not construct. Keep an object-safe boxed-closure method on the base provider trait and \
+move the ergonomic generic run onto a blanket-implemented extension trait, so both the concrete \
+provider and the dyn provider expose a generic run while the documented Arc-of-dyn DI shape compiles.
 """
 why = """
 Compile-time visibility of transactional posture at every call site. A call to save(item, None) \
@@ -27,10 +32,17 @@ immediately. Making the repository generic over Tx is bureaucratically compile-t
 forces every consumer to carry Tx through the type graph, and the ceremony compounds badly across \
 service composition. Letting the ORM type leak into the domain trait violates the hexagonal-architecture \
 commitment that domain has zero framework deps; it can feel tempting in TS where import-type is free, \
-but it is structurally wrong in Rust because the domain crate then transitively depends on the ORM.
+but it is structurally wrong in Rust because the domain crate then transitively depends on the ORM. \
+The provider that runs the unit-of-work closure is injected as a trait object, so it must remain \
+object-safe; exposing the generic run via a blanket-implemented extension trait (while the base trait \
+carries only an object-safe boxed-closure method) preserves both the dyn-injection shape and the \
+ergonomic generic call site. This is the canonical object-safe-core-plus-extension-trait split used \
+across the ecosystem (Iterator/Itertools, Future/FutureExt). (Amended 2026-06-08 after the \
+object-safety gap surfaced in a real build.)
 """
 alternatives = [
     "Repository write methods take a generic Tx parameter, and every consumer of the repository must carry that generic through its type graph",
     "Transactional context is provided as a closure-based ambient via task-local storage, so the repository trait carries no transaction parameter and the transaction is read from task-local state at call time",
     "Repository write methods take a parameter typed as the concrete ORM transaction type directly, with the ORM type appearing in the domain trait surface",
+    "Keep the ergonomic generic run method directly on the base unit-of-work provider trait (rejected: a generic method makes the trait non-object-safe, so the Arc-of-dyn-provider dependency-injection shape the convention depends on cannot be constructed)",
 ]

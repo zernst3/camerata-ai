@@ -1,0 +1,16 @@
+id = "RUST-DIOXUS-15"
+title = "document::eval must end with dioxus.send(value) to unblock the Rust await"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "When Rust code awaits a value from dioxus::document::eval (or from Eval::new(...).recv()), the JavaScript source ends with a call to dioxus.send(value). A bare return statement, a resolved Promise, a setTimeout whose callback calls resolve, or an arrow function returning a value do not unblock the Rust await. Only the dioxus.send call posts a value back across the eval bridge."
+why = "The Dioxus eval bridge uses a specific message-passing protocol. Bare JS values, resolved Promises, and standard async-completion patterns are silently discarded by the bridge; only an explicit dioxus.send call posts a value to the awaiting Rust side. This is non-obvious because every other JavaScript async pattern (resolving a Promise, returning from an async function, invoking a callback) is how JS normally signals done to its caller, so the instinct to reach for one of those patterns is exactly what produces the silent-failure mode. The rule is not version-specific: Dioxus 0.6 and 0.7 both require dioxus.send. A single missed call produces a Rust await that hangs forever, which surfaces as the effect never runs or the state never updates, bugs that look unrelated to the eval call. Ending the JS with a bare return posts nothing across the bridge, so the await hangs. Returning a Promise that resolves with the value resolves it inside the JS VM but never crosses the bridge, so the await still hangs. Using setTimeout to resolve a Promise after a delay has the same defect plus a timing red herring that makes the bug look like a race condition. Abandoning eval entirely for a server function or a wasm-bindgen FFI call is heavier than the problem warrants when a one-line dioxus.send fixes it, and it gives up the lightweight in-component JS interop that eval exists to provide."
+alternatives = [
+    "The JavaScript source for the eval ends with a bare return of the value (or an implicit arrow-function return), expecting the Rust await to receive it.",
+    "The JavaScript source returns a Promise that resolves with the value, expecting the Rust await to receive the resolved value.",
+    "The JavaScript source uses setTimeout to call resolve with the value after a delay, expecting the Rust await to unblock when the timeout fires.",
+    "Every eval that needs to return a value is replaced with a server function or a wasm-bindgen FFI binding, and document::eval is used only for fire-and-forget side effects.",
+]

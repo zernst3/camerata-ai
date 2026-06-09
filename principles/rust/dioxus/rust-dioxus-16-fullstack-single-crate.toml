@@ -1,0 +1,15 @@
+id = "RUST-DIOXUS-16"
+title = "A Dioxus Fullstack app is a single workspace crate, not a split server plus ui pair"
+tag = "stack"
+domain = "rust:dioxus"
+layer = "framework"
+enforcement = "structured"
+default = true
+stance = "default"
+summary = "A Dioxus Fullstack web app is one workspace crate that compiles to two targets: the server target (native, running the SSR host plus any API routes) and the web target (wasm32-unknown-unknown, running the hydration runtime in the browser). The two targets share the App component. Per-target code is gated either by a target-arch cfg attribute (server-only code excluded on wasm32, web-only code excluded off wasm32) or by Cargo server and web features, so native-only dependencies (the HTTP server, an async runtime's networking, DB drivers) never enter the wasm32 dependency graph. The dev workflow drives the Dioxus CLI with the web platform against this single crate, which builds both targets."
+why = "The Dioxus CLI expects a single crate that compiles twice, once per target, sharing the App component across both. Splitting the server-host code into a separate workspace crate breaks the CLI's serve command because it compiles the whole app for the wasm32 target to produce the hydration bundle; the moment the server crate carries a native-only dependency (an async runtime's net feature, the low-level poll crate it pulls in, a database driver, the HTTP server itself), the wasm32 compile fails. The failure surfaces deep inside a transitive dependency, often as a message that the wasm target is unsupported, and reads as a dependency problem when it is actually a workspace-shape problem, so it costs real debugging time to trace back. Keeping one crate with target-cfg gating (or feature gating) is the documented, supported shape and keeps the App component genuinely shared rather than duplicated. The separate-server-crate alternative forces a hand-rolled WASM build pipeline and abandons the CLI's hot-reload entirely. The two-binaries-one-workspace alternative still makes the CLI pick a target per invocation and loses the unified serve. Dropping Fullstack for a plain Web SPA plus a separate API service is a legitimate architecture but gives up server-side rendering, first-paint HTML, and the shared-types convenience that were the reasons to choose Fullstack in the first place."
+alternatives = [
+    "The server-host code lives in a separate workspace crate that depends on a UI library crate; the team runs the native binary directly for the server and builds the WASM hydration bundle via a custom pipeline that does not use the Dioxus CLI.",
+    "Two binary crates inside one workspace, one per target, share an App library crate; the Dioxus CLI is invoked separately per target or replaced with custom scripts.",
+    "The app is built as a plain Dioxus Web single-page app with no server-side rendering, and the API lives in a separate non-Dioxus service.",
+]
