@@ -7,7 +7,7 @@ enforcement = "prose"
 default = false
 
 [decision]
-question = "What position does the project take on: Camerata user guide (read this first)?"
+question = "Where does camerata's own user guidance live so a newcomer can find it?"
 default = "camerata-user-guide-read-this-first"
 why = "Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README. The right pane already renders principle text well; reusing that surface keeps the chrome minimal. Documenting only in the README forces a newcomer to leave the tool to learn how it works, which they often will not do on first launch; the cost is felt as confusion at the GUI without an obvious recovery path. Building a separate Help menu or dedicated help window adds chrome for content the principle-detail pane already renders well, and the help surface then has to be kept in sync with the actual UX through a second update path."
 
