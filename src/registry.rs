@@ -20,8 +20,8 @@ fn load_recursive(dir: &Path, out: &mut Vec<Principle>) -> Result<()> {
         } else if path.extension().and_then(|e| e.to_str()) == Some("toml") {
             let text = fs::read_to_string(&path)
                 .with_context(|| format!("reading `{}`", path.display()))?;
-            let principle: Principle = toml::from_str(&text)
-                .with_context(|| format!("parsing `{}`", path.display()))?;
+            let principle: Principle =
+                toml::from_str(&text).with_context(|| format!("parsing `{}`", path.display()))?;
             out.push(principle);
         }
     }
