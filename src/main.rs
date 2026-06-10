@@ -63,6 +63,13 @@ enum Command {
     },
     /// Print the whole principle library as JSON (catalog export).
     Export,
+    /// Report installed rules whose upstream content has changed since the
+    /// project's camerata.lock was written, or that no longer exist.
+    Outdated {
+        /// Directory containing the camerata.lock to check (defaults to ".").
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -94,7 +101,44 @@ fn main() -> Result<()> {
             println!("{}", emit::catalog_json(&principles)?);
             Ok(())
         }
+        Command::Outdated { dir } => cmd_outdated(&principles, &dir),
     }
+}
+
+/// Read the project's camerata.lock and report any installed rule whose
+/// upstream content has drifted or that no longer exists. Exits via the
+/// returned Result; a non-empty drift set prints a report (still Ok, so the
+/// command is informational rather than failing).
+fn cmd_outdated(principles: &[Principle], dir: &Path) -> Result<()> {
+    let lock_path = dir.join("camerata.lock");
+    let text = std::fs::read_to_string(&lock_path).map_err(|e| {
+        anyhow::anyhow!(
+            "reading {}: {e} (run `camerata init` here first)",
+            lock_path.display()
+        )
+    })?;
+    let installed = emit::parse_lock(&text);
+    let drift = emit::outdated(&installed, principles);
+    if drift.is_empty() {
+        println!(
+            "camerata: up to date ({} installed rule(s) match the current library).",
+            installed.len()
+        );
+        return Ok(());
+    }
+    println!(
+        "camerata: {} rule(s) drifted from {}:",
+        drift.len(),
+        lock_path.display()
+    );
+    for d in &drift {
+        match d {
+            emit::Drift::Changed(id) => println!("  changed   {id}  (upstream content updated)"),
+            emit::Drift::Removed(id) => println!("  removed   {id}  (no longer in the library)"),
+        }
+    }
+    println!("\nRe-run `camerata init` to regenerate against the current library.");
+    Ok(())
 }
 
 fn tag_glyph(t: Tag) -> &'static str {

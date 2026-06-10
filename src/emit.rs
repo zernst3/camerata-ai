@@ -180,6 +180,66 @@ fn principle_hash(sel: &Selection) -> String {
     format!("{:016x}", h.finish())
 }
 
+/// The lockfile hash for a principle adopted at its DEFAULT option. `outdated`
+/// compares against this because the lockfile records only ids and hashes, not
+/// which option each project chose; the default-adopted hash is the right
+/// comparison for the common case (defaulted rules). A rule the architect
+/// resolved to a non-default option will read as "changed" here, which is a
+/// conservative (false-positive-leaning) signal, never a missed change.
+pub fn default_principle_hash(p: &Principle) -> String {
+    principle_hash(&Selection::new(p))
+}
+
+/// One difference between an installed lockfile and the current library.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Drift {
+    /// The rule's adopted hash changed upstream (id present in both).
+    Changed(String),
+    /// The rule is installed but no longer exists in the current library.
+    Removed(String),
+}
+
+/// Parse the `[[installed]]` id/hash pairs out of a `camerata.lock` body.
+pub fn parse_lock(text: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    let mut cur_id: Option<String> = None;
+    for line in text.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("id = ") {
+            cur_id = Some(rest.trim().trim_matches('"').to_string());
+        } else if let Some(rest) = line.strip_prefix("hash = ") {
+            if let Some(id) = cur_id.take() {
+                out.push((id, rest.trim().trim_matches('"').to_string()));
+            }
+        }
+    }
+    out
+}
+
+/// Compare a parsed lockfile against the current library and report drift.
+/// Returns one entry per installed rule whose adopted hash changed or that no
+/// longer exists. Rules whose hash is unchanged, and library rules not in the
+/// lock, are omitted. Custom rules (id starting with `CUSTOM-`) are skipped
+/// because their content is user-owned, not upstream.
+pub fn outdated(installed: &[(String, String)], library: &[Principle]) -> Vec<Drift> {
+    let by_id: HashMap<&str, &Principle> = library.iter().map(|p| (p.id.as_str(), p)).collect();
+    let mut drift = Vec::new();
+    for (id, locked_hash) in installed {
+        if id.starts_with("CUSTOM-") {
+            continue;
+        }
+        match by_id.get(id.as_str()) {
+            None => drift.push(Drift::Removed(id.clone())),
+            Some(p) => {
+                if default_principle_hash(p) != *locked_hash {
+                    drift.push(Drift::Changed(id.clone()));
+                }
+            }
+        }
+    }
+    drift
+}
+
 /// Build the self-describing header that prefixes each emitted file.
 ///
 /// The header has two roles. First, it tells a consumer AI agent that
@@ -906,6 +966,57 @@ why = "defensible when Y"
             !rust_agents.contains("ROUTE-UNIV-1"),
             "universal rule must NOT land in rust repo (no override mapped *)",
         );
+    }
+
+    #[test]
+    fn parse_lock_extracts_id_hash_pairs() {
+        let lock = "# header\n\n[[installed]]\nid = \"A-B-1\"\nhash = \"deadbeef\"\n\n[[installed]]\nid = \"C-D-2\"\nhash = \"cafef00d\"\n";
+        let pairs = parse_lock(lock);
+        assert_eq!(
+            pairs,
+            vec![
+                ("A-B-1".to_string(), "deadbeef".to_string()),
+                ("C-D-2".to_string(), "cafef00d".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn outdated_reports_changed_and_removed() {
+        let current = principle(
+            "KEEP-RULE-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the current directive",
+        );
+        let installed = vec![
+            // Same id but a stale hash -> Changed.
+            ("KEEP-RULE-1".to_string(), "0000staleHASH000".to_string()),
+            // Id no longer in the library -> Removed.
+            ("GONE-RULE-1".to_string(), "whatever".to_string()),
+            // Custom rules are skipped.
+            ("CUSTOM-mine".to_string(), "x".to_string()),
+        ];
+        let drift = outdated(&installed, std::slice::from_ref(&current));
+        assert!(drift.contains(&Drift::Changed("KEEP-RULE-1".to_string())));
+        assert!(drift.contains(&Drift::Removed("GONE-RULE-1".to_string())));
+        assert_eq!(drift.len(), 2, "custom rule must be skipped");
+    }
+
+    #[test]
+    fn outdated_is_empty_when_hashes_match() {
+        let p = principle(
+            "MATCH-RULE-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "body",
+        );
+        let installed = vec![("MATCH-RULE-1".to_string(), default_principle_hash(&p))];
+        assert!(outdated(&installed, std::slice::from_ref(&p)).is_empty());
     }
 
     #[test]

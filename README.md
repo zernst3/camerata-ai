@@ -52,6 +52,7 @@ The CLI is a thin frontend over the same library the GUI uses. It is the right s
 | `camerata list` | Print every principle in the library (id, domain, tag, title). Useful for browsing what's available. |
 | `camerata init` | Scaffold selected principles into a target directory. See the flag reference below. |
 | `camerata export` | Print the entire principle library as a JSON catalog on stdout. For piping into other tools. |
+| `camerata outdated` | Read this project's `camerata.lock` and report installed rules whose upstream content has changed, or that no longer exist. Pass `--dir PATH` to check a different directory. |
 
 ### `camerata init` flags
 
