@@ -101,7 +101,6 @@ fn tag_glyph(t: Tag) -> &'static str {
     match t {
         Tag::Universal => "[U]",
         Tag::Stack => "[S]",
-        Tag::Choice => "[C]",
     }
 }
 
@@ -116,7 +115,7 @@ fn cmd_list(principles: &[Principle]) -> Result<()> {
             p.title
         );
     }
-    println!("\nlegend:  [U]niversal (default-on)   [S]tack-gated   [C]hoice (prompts you)");
+    println!("\nlegend:  [U]niversal (default-on)   [S]tack-gated");
     Ok(())
 }
 
@@ -139,40 +138,51 @@ fn in_scope(p: &Principle, user_domains: &[String]) -> bool {
         .any(|d| d == &p.domain || d == stack_base)
 }
 
-/// Resolve a picked choice-option LABEL to the directive text that should be
-/// emitted as the rule body, returning the value for `Selection.chosen`.
+/// Resolve the chosen option id for a rule under the decision-first schema,
+/// returning the value for `Selection.chosen` and whether the rule should be
+/// emitted at all.
 ///
-/// Returns `None` (emit the summary) when the picked label is the default. For
-/// a non-default label, returns `Some(alternative_text)` by matching the label
-/// to the alternative at the same position among the non-default options. When
-/// the option list and the alternatives list disagree in count (a known data
-/// inconsistency in some legacy rules), this falls back to the default and
-/// warns on stderr rather than emitting the bare label as a malformed directive.
-fn resolve_choice_directive(
-    p: &Principle,
-    choice: &camerata::principle::Choice,
-    picked: &str,
-) -> Option<String> {
-    if picked == choice.default {
-        return None;
+/// - `defaults` (non-interactive): take the default option (`None`). A rule with
+///   no default cannot auto-resolve, so it is skipped (route-to-human) and the
+///   skip is surfaced on stderr.
+/// - interactive: prompt with the option labels when there is a real choice
+///   (more than one option). Returns `Some(option_id)` for the picked option,
+///   or `None` when the picked option is the default.
+fn resolve_option<'a>(p: &'a Principle, defaults: bool) -> Result<Option<Selection<'a>>> {
+    if defaults {
+        if p.has_no_default() {
+            eprintln!(
+                "note: skipping {} — no default option; resolve it interactively or in the GUI.",
+                p.id
+            );
+            return Ok(None);
+        }
+        return Ok(Some(Selection::new(p)));
     }
-    // Position of the picked label among the NON-default options.
-    let non_default_index = choice
+    // Interactive. With a single option there is nothing to ask.
+    if p.options.len() <= 1 {
+        if p.has_no_default() && p.options.is_empty() {
+            return Ok(None);
+        }
+        return Ok(Some(Selection::new(p)));
+    }
+    let labels: Vec<String> = p.options.iter().map(|o| o.label.clone()).collect();
+    let picked_label = inquire::Select::new(&p.decision.question, labels).prompt()?;
+    let picked = p
         .options
         .iter()
-        .filter(|o| *o != &choice.default)
-        .position(|o| o == picked);
-    match non_default_index.and_then(|i| p.alternatives.get(i)) {
-        Some(alt) => Some(alt.clone()),
-        None => {
-            eprintln!(
-                "warning: rule {} option \"{}\" has no matching alternative directive; \
-                 keeping the default. (Re-author this rule under the decision/options schema.)",
-                p.id, picked
-            );
-            None
-        }
-    }
+        .find(|o| o.label == picked_label)
+        .expect("picked label came from the option list");
+    let chosen = if Some(picked.id.as_str()) == p.decision.default.as_deref() {
+        None
+    } else {
+        Some(picked.id.clone())
+    };
+    Ok(Some(Selection {
+        principle: p,
+        chosen,
+        custom_directive: None,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -227,33 +237,11 @@ fn cmd_init(
         if minimal && p.domain == "*" {
             continue;
         }
-        let chosen = match p.tag {
-            Tag::Universal | Tag::Stack => None,
-            Tag::Choice => match (&p.choice, defaults) {
-                // In --defaults mode, "take the default" means use the
-                // rule's summary as the emitted body. Setting chosen to the
-                // option-label here would make the emit show just the label
-                // ("tiered") instead of the prose summary that describes
-                // what the default actually entails.
-                (Some(_), true) => None,
-                (Some(c), false) => {
-                    let picked = inquire::Select::new(&c.prompt, c.options.clone()).prompt()?;
-                    // Resolve the picked OPTION LABEL to the DIRECTIVE TEXT the
-                    // consumer agent must read. Emitting the bare label (the old
-                    // behavior) shipped a malformed directive like "per-session
-                    // cap only" as the rule body, diverging from the GUI which
-                    // emits full alternative text. The default label maps to the
-                    // summary (None); a non-default label maps to the alternative
-                    // at the same position among the non-default options.
-                    resolve_choice_directive(p, c, &picked)
-                }
-                (None, _) => None,
-            },
-        };
-        selections.push(Selection {
-            principle: p,
-            chosen,
-        });
+        // Resolve which option this rule adopts (default, picked, or skipped
+        // for unresolved no-default rules under --defaults).
+        if let Some(sel) = resolve_option(p, defaults)? {
+            selections.push(sel);
+        }
     }
 
     let results = emit::scaffold_routed(out, &overrides, &selections, &[])?;
@@ -281,77 +269,82 @@ fn cmd_init(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use camerata::principle::Choice;
 
-    fn choice_rule() -> Principle {
+    fn defaulted_rule() -> Principle {
         let toml_text = r#"
-id = "TEST-CHOICE-1"
-title = "choice rule"
-tag = "choice"
+id = "TEST-DEF-1"
+title = "rule with a default"
+tag = "universal"
 domain = "agentic"
 layer = "universal"
 enforcement = "prose"
 default = true
-summary = "the default directive"
-why = "reason"
-alternatives = [
-    "the first alternative directive",
-    "the second alternative directive",
-]
 
-[choice]
-prompt = "pick one"
-options = ["default label", "first alt label", "second alt label"]
-default = "default label"
+[decision]
+question = "pick one"
+default = "primary"
+why = "reason"
+
+[[option]]
+id = "primary"
+label = "the primary option"
+directive = "the default directive"
+why = "primary is correct here"
+
+[[option]]
+id = "alt"
+label = "the alt option"
+directive = "the alternative directive"
+why = "looser; narrow contexts only"
+"#;
+        toml::from_str(toml_text).expect("fixture parses")
+    }
+
+    fn no_default_rule() -> Principle {
+        let toml_text = r#"
+id = "TEST-NODEF-1"
+title = "open decision"
+tag = "universal"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "which posture?"
+why = "no universal answer"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "defensible when X"
+
+[[option]]
+id = "b"
+label = "b"
+directive = "do b"
+why = "defensible when Y"
 "#;
         toml::from_str(toml_text).expect("fixture parses")
     }
 
     #[test]
-    fn resolve_default_label_returns_none() {
-        let p = choice_rule();
-        let c = p.choice.clone().expect("choice");
-        assert_eq!(resolve_choice_directive(&p, &c, "default label"), None);
+    fn resolve_option_defaults_mode_takes_default() {
+        let p = defaulted_rule();
+        let sel = resolve_option(&p, true).expect("ok").expect("selection");
+        assert!(
+            sel.chosen.is_none(),
+            "defaults mode takes the default option"
+        );
+        assert_eq!(sel.resolve_directive(), Some("the default directive"));
     }
 
     #[test]
-    fn resolve_non_default_label_returns_matching_alternative_text_not_label() {
-        let p = choice_rule();
-        let c = p.choice.clone().expect("choice");
-        // This is the bug fix: the directive must be the alternative TEXT,
-        // never the bare option label.
-        assert_eq!(
-            resolve_choice_directive(&p, &c, "first alt label"),
-            Some("the first alternative directive".to_string()),
-        );
-        assert_eq!(
-            resolve_choice_directive(&p, &c, "second alt label"),
-            Some("the second alternative directive".to_string()),
-        );
-    }
-
-    #[test]
-    fn resolve_falls_back_to_default_when_no_matching_alternative() {
-        // An option with no corresponding alternative directive (the
-        // ORCH-BUDGET-MONITOR-1 "per-session cap only" case) must NOT emit
-        // the bare label; it falls back to the default.
-        let mut p = choice_rule();
-        p.alternatives = vec!["only one alternative".to_string()];
-        let c = Choice {
-            prompt: "pick".to_string(),
-            options: vec![
-                "default label".to_string(),
-                "first alt label".to_string(),
-                "orphan label".to_string(),
-            ],
-            default: "default label".to_string(),
-        };
-        // first alt label -> alternatives[0] (ok)
-        assert_eq!(
-            resolve_choice_directive(&p, &c, "first alt label"),
-            Some("only one alternative".to_string()),
-        );
-        // orphan label -> alternatives[1] missing -> default
-        assert_eq!(resolve_choice_directive(&p, &c, "orphan label"), None);
+    fn resolve_option_defaults_mode_skips_no_default_rule() {
+        let p = no_default_rule();
+        // A no-default rule cannot auto-resolve; it is skipped under --defaults.
+        let sel = resolve_option(&p, true).expect("ok");
+        assert!(sel.is_none(), "no-default rule is skipped in defaults mode");
     }
 }

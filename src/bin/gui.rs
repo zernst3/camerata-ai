@@ -188,10 +188,7 @@ fn run_generate(
         .iter()
         .enumerate()
         .filter(|(i, _)| *selected.get(*i).unwrap_or(&false))
-        .map(|(i, p)| Selection {
-            principle: p,
-            chosen: chosen.get(i).cloned().flatten(),
-        })
+        .map(|(i, p)| gui_selection(p, chosen.get(i).cloned().flatten()))
         .collect();
     let repo_set: HashSet<String> = repos.iter().cloned().collect();
     let overrides: HashMap<String, Vec<PathBuf>> = domain_repos
@@ -206,7 +203,12 @@ fn run_generate(
         })
         .filter(|(_, v)| !v.is_empty())
         .collect();
-    match emit::scaffold_routed(std::path::Path::new(out_dir), &overrides, &sels, custom_rules) {
+    match emit::scaffold_routed(
+        std::path::Path::new(out_dir),
+        &overrides,
+        &sels,
+        custom_rules,
+    ) {
         Ok(results) => {
             let targets: Vec<String> = results
                 .iter()
@@ -306,7 +308,31 @@ fn tag_glyph(t: Tag) -> &'static str {
     match t {
         Tag::Universal => "[U]",
         Tag::Stack => "[S]",
-        Tag::Choice => "[C]",
+    }
+}
+
+/// Build a `Selection` from the GUI's per-rule `chosen` value, which holds
+/// either a library option id or, for a custom option the architect authored,
+/// the directive text itself. A value that matches a library option id resolves
+/// by id; anything else is treated as a custom option directive supplied inline.
+fn gui_selection<'a>(p: &'a Principle, chosen: Option<String>) -> Selection<'a> {
+    match chosen {
+        None => Selection::new(p),
+        Some(value) => {
+            if p.option(&value).is_some() {
+                Selection {
+                    principle: p,
+                    chosen: Some(value),
+                    custom_directive: None,
+                }
+            } else {
+                Selection {
+                    principle: p,
+                    chosen: Some("custom".to_string()),
+                    custom_directive: Some(value),
+                }
+            }
+        }
     }
 }
 
@@ -476,8 +502,13 @@ fn app() -> Element {
     // Recovery state: on launch, check the autosave path. If a profile exists
     // there, hold it in pending_recovery and surface the recovery banner.
     let mut pending_recovery = use_signal(|| {
-        autosave_path()
-            .and_then(|p| if p.exists() { Profile::load(&p).ok() } else { None })
+        autosave_path().and_then(|p| {
+            if p.exists() {
+                Profile::load(&p).ok()
+            } else {
+                None
+            }
+        })
     });
     // Soft-warning banner for selected ids in a loaded profile that don't
     // exist in the current library (renamed/removed canonical rules).
@@ -515,7 +546,11 @@ fn app() -> Element {
     {
         use dioxus::desktop::tao::event::{Event, WindowEvent as TaoWindowEvent};
         dioxus::desktop::use_wry_event_handler(move |event, _target| {
-            if let Event::WindowEvent { event: TaoWindowEvent::CloseRequested, .. } = event {
+            if let Event::WindowEvent {
+                event: TaoWindowEvent::CloseRequested,
+                ..
+            } = event
+            {
                 exit_prompt_open.set(true);
             }
         });
@@ -1146,7 +1181,7 @@ fn app() -> Element {
                             .iter()
                             .enumerate()
                             .filter(|(i, _)| sel[*i])
-                            .map(|(i, p)| Selection { principle: p, chosen: cho[i].clone() })
+                            .map(|(i, p)| gui_selection(p, cho[i].clone()))
                             .collect();
                         if let Some(path) = rfd::FileDialog::new()
                             .set_file_name("camerata.selections.json")
@@ -2227,59 +2262,78 @@ fn app() -> Element {
                         div {
                             h3 { style: "margin:0;", "{plist[i].title}" }
                             div { style: "color:#999; font-family:monospace; font-size:0.85em; margin-bottom:6px;", "{plist[i].id}" }
-                            div { style: "margin-top:10px; font-weight:600;", "Summary:" }
-                            for (k , block) in parse_markdown_lite(&plist[i].summary).into_iter().enumerate() {
-                                if let Block::H1(t) = &block {
-                                    h3 { key: "b-{k}", style: "margin:14px 0 4px 0;", "{t}" }
-                                }
-                                if let Block::H2(t) = &block {
-                                    h4 { key: "b-{k}", style: "margin:10px 0 4px 0;", "{t}" }
-                                }
-                                if let Block::Para(t) = &block {
-                                    p { key: "b-{k}", "{t}" }
-                                }
-                                if let Block::List(items) = &block {
-                                    ul { key: "b-{k}", style: "margin:6px 0; padding-left:20px;",
-                                        for (j , it) in items.iter().enumerate() {
-                                            li { key: "{j}", "{it}" }
-                                        }
-                                    }
+                            div { style: "margin-top:10px; font-weight:600;", "Decision:" }
+                            p { "{plist[i].decision.question}" }
+                            if plist[i].has_no_default() {
+                                p { style: "color:#a15c00; font-weight:600;",
+                                    "No default — this decision requires your choice before it can emit."
                                 }
                             }
-                            if let Some(w) = plist[i].why.clone() {
-                                p { b { "Why: " } "{w}" }
-                            }
+                            p { b { "Why: " } "{plist[i].decision.why}" }
                             if !is_meta_domain(plist[i].domain.as_str()) {
                             div { style: "margin-top:8px; font-weight:600;", "Choose how to adopt this:" }
+                            // One button per option. The default (if any) is
+                            // adopted when chosen[i] is None; an explicit pick
+                            // stores the option id.
                             {
-                                let is_def = chosen.read()[i].is_none();
+                                let default_id = plist[i].decision.default.clone();
                                 rsx! {
-                                    button {
-                                        style: opt_style(is_def),
-                                        onclick: move |_| chosen.with_mut(|c| c[i] = None),
-                                        "Adopt summary as rule (default)"
-                                    }
-                                }
-                            }
-                            for (k , alt) in plist[i].alternatives.iter().enumerate() {
-                                {
-                                    let altc = alt.clone();
-                                    let label = alt.clone();
-                                    let is_sel = chosen.read()[i].as_deref() == Some(alt.as_str());
-                                    rsx! {
-                                        button {
-                                            key: "{k}",
-                                            style: opt_style(is_sel),
-                                            onclick: move |_| {
-                                                let a = altc.clone();
-                                                chosen.with_mut(|c| c[i] = Some(a.clone()));
-                                            },
-                                            "Alternative: {label}"
+                                    for (k , opt) in plist[i].options.iter().enumerate() {
+                                        {
+                                            let opt_id = opt.id.clone();
+                                            let label = opt.label.clone();
+                                            let directive = opt.directive.clone();
+                                            let is_default = Some(opt.id.as_str()) == default_id.as_deref();
+                                            let cur = chosen.read()[i].clone();
+                                            // Selected when chosen names this id, OR
+                                            // when nothing is chosen and this is the default.
+                                            let is_sel = cur.as_deref() == Some(opt_id.as_str())
+                                                || (cur.is_none() && is_default);
+                                            let default_id_for_click = default_id.clone();
+                                            let suffix = if is_default { " (default)" } else { "" };
+                                            rsx! {
+                                                button {
+                                                    key: "opt-{k}",
+                                                    style: opt_style(is_sel),
+                                                    onclick: move |_| {
+                                                        // Picking the default clears chosen so the
+                                                        // emit stays at the default option.
+                                                        let pick = if Some(opt_id.as_str()) == default_id_for_click.as_deref() {
+                                                            None
+                                                        } else {
+                                                            Some(opt_id.clone())
+                                                        };
+                                                        chosen.with_mut(|c| c[i] = pick);
+                                                    },
+                                                    div { style: "font-weight:600;", "{label}{suffix}" }
+                                                    div { style: "font-weight:400; font-size:0.9em; color:#555; margin-top:2px;",
+                                                        for (bk , block) in parse_markdown_lite(&directive).into_iter().enumerate() {
+                                                            if let Block::H1(t) = &block {
+                                                                div { key: "d-{bk}", style: "font-weight:600; margin-top:6px;", "{t}" }
+                                                            }
+                                                            if let Block::H2(t) = &block {
+                                                                div { key: "d-{bk}", style: "font-weight:600; margin-top:4px;", "{t}" }
+                                                            }
+                                                            if let Block::Para(t) = &block {
+                                                                p { key: "d-{bk}", style: "margin:4px 0;", "{t}" }
+                                                            }
+                                                            if let Block::List(items) = &block {
+                                                                ul { key: "d-{bk}", style: "margin:4px 0; padding-left:18px;",
+                                                                    for (j , it) in items.iter().enumerate() {
+                                                                        li { key: "{j}", "{it}" }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                            // User-authored alternatives for this built-in rule.
+                            // User-authored options for this built-in rule (stored
+                            // as directive text in custom_alts; chosen holds the text).
                             for (k , alt) in custom_alts.read()[i].clone().iter().enumerate() {
                                 {
                                     let altc = alt.clone();
@@ -2293,17 +2347,17 @@ fn app() -> Element {
                                                 let a = altc.clone();
                                                 chosen.with_mut(|c| c[i] = Some(a.clone()));
                                             },
-                                            "Your alternative: {label}"
+                                            "Your option: {label}"
                                         }
                                     }
                                 }
                             }
                             div { style: "margin-top:10px;",
                                 div { style: "font-weight:600; margin-bottom:3px;",
-                                    "Add your own alternative (include the context it requires):"
+                                    "Add your own option (write the directive the agent should follow):"
                                 }
                                 textarea {
-                                    placeholder: "Describe your alternative and the context/rationale it needs…",
+                                    placeholder: "Write the directive for your option as a single self-contained instruction…",
                                     rows: "5",
                                     style: "width:100%; padding:6px; box-sizing:border-box;",
                                     value: "{new_alt}",
@@ -2319,7 +2373,7 @@ fn app() -> Element {
                                             new_alt.set(String::new());
                                         }
                                     },
-                                    "Add alternative"
+                                    "Add option"
                                 }
                             }
                             }

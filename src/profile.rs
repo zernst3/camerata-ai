@@ -11,12 +11,17 @@
 //! stored in full.
 
 use crate::emit::CustomRule;
+use crate::principle::Principle;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-pub const PROFILE_VERSION: u32 = 1;
+/// Profile schema version. Bumped to 2 when `chosen` changed from mapping a
+/// rule id to the full ALTERNATIVE TEXT (v0.1) to mapping a rule id to the
+/// chosen OPTION ID (decision-first schema). `migrate_chosen_to_option_ids`
+/// best-effort upgrades a v1 `chosen` map against the current library.
+pub const PROFILE_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Profile {
@@ -44,8 +49,7 @@ impl Profile {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating parent dir for {}", path.display()))?;
         }
-        let json = serde_json::to_string_pretty(self)
-            .context("serializing profile to JSON")?;
+        let json = serde_json::to_string_pretty(self).context("serializing profile to JSON")?;
         std::fs::write(path, json)
             .with_context(|| format!("writing profile to {}", path.display()))?;
         Ok(())
@@ -70,6 +74,58 @@ impl Profile {
             .cloned()
             .collect()
     }
+
+    /// Best-effort upgrade of a legacy v1 `chosen` map (rule id -> full
+    /// alternative TEXT) to the decision-first form (rule id -> option id),
+    /// matched against the current library. For each entry whose value is not
+    /// already an option id of the rule, this text-matches the value against
+    /// the rule's option directives (exact, then trimmed) and replaces it with
+    /// the matching option id. Entries that match nothing are left untouched so
+    /// no selection is silently dropped; the version is bumped regardless.
+    ///
+    /// Returns the rule ids whose `chosen` value could not be resolved to an
+    /// option id, so the caller can surface a soft warning.
+    pub fn migrate_chosen_to_option_ids(&mut self, library: &[Principle]) -> Vec<String> {
+        let by_id: HashMap<&str, &Principle> = library.iter().map(|p| (p.id.as_str(), p)).collect();
+        let mut unresolved = Vec::new();
+        let mut upgraded: HashMap<String, String> = HashMap::new();
+        for (rule_id, value) in &self.chosen {
+            let Some(p) = by_id.get(rule_id.as_str()) else {
+                // Rule no longer exists; keep the value verbatim, surface later.
+                upgraded.insert(rule_id.clone(), value.clone());
+                unresolved.push(rule_id.clone());
+                continue;
+            };
+            // Already an option id? Nothing to do.
+            if p.option(value).is_some() {
+                upgraded.insert(rule_id.clone(), value.clone());
+                continue;
+            }
+            // Legacy: value is full directive/alternative text. Match it to an
+            // option by directive text (exact, then trimmed).
+            let matched = p
+                .options
+                .iter()
+                .find(|o| o.directive == *value)
+                .or_else(|| {
+                    p.options
+                        .iter()
+                        .find(|o| o.directive.trim() == value.trim())
+                });
+            match matched {
+                Some(o) => {
+                    upgraded.insert(rule_id.clone(), o.id.clone());
+                }
+                None => {
+                    upgraded.insert(rule_id.clone(), value.clone());
+                    unresolved.push(rule_id.clone());
+                }
+            }
+        }
+        self.chosen = upgraded;
+        self.version = PROFILE_VERSION;
+        unresolved
+    }
 }
 
 #[cfg(test)]
@@ -79,7 +135,10 @@ mod tests {
 
     fn sample_profile() -> Profile {
         let mut chosen = HashMap::new();
-        chosen.insert("CHOICE-RULE-1".to_string(), "the alternative text".to_string());
+        chosen.insert(
+            "CHOICE-RULE-1".to_string(),
+            "the alternative text".to_string(),
+        );
         let mut domain_repos = HashMap::new();
         domain_repos.insert("rust".to_string(), vec!["/repos/rust-repo".to_string()]);
         Profile {
@@ -122,9 +181,17 @@ mod tests {
     #[test]
     fn save_creates_missing_parent_directories() {
         let dir = tempdir().expect("tempdir");
-        let path = dir.path().join("a").join("b").join("c").join("profile.json");
+        let path = dir
+            .path()
+            .join("a")
+            .join("b")
+            .join("c")
+            .join("profile.json");
         Profile::default().save(&path).expect("save");
-        assert!(path.exists(), "profile.json was created under nested parents");
+        assert!(
+            path.exists(),
+            "profile.json was created under nested parents"
+        );
     }
 
     #[test]
@@ -150,6 +217,73 @@ mod tests {
         assert_eq!(missing.len(), 2);
         assert!(missing.contains(&"UNIV-RULE-1".to_string()));
         assert!(missing.contains(&"RUST-DOMAIN-4".to_string()));
+    }
+
+    fn library_for_migration() -> Vec<Principle> {
+        let toml_text = r#"
+id = "CHOICE-RULE-1"
+title = "t"
+tag = "universal"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "q"
+default = "primary"
+why = "w"
+
+[[option]]
+id = "primary"
+label = "primary"
+directive = "the primary directive"
+why = "w"
+
+[[option]]
+id = "alt"
+label = "alt"
+directive = "the alternative text"
+why = "w"
+"#;
+        vec![toml::from_str(toml_text).expect("parses")]
+    }
+
+    #[test]
+    fn migrate_chosen_text_to_option_id() {
+        let mut p = sample_profile();
+        // sample_profile sets chosen["CHOICE-RULE-1"] = "the alternative text".
+        let unresolved = p.migrate_chosen_to_option_ids(&library_for_migration());
+        assert!(unresolved.is_empty(), "exact directive text should resolve");
+        assert_eq!(
+            p.chosen.get("CHOICE-RULE-1").map(String::as_str),
+            Some("alt"),
+            "legacy alternative text migrates to the option id",
+        );
+        assert_eq!(p.version, PROFILE_VERSION);
+    }
+
+    #[test]
+    fn migrate_leaves_already_migrated_option_id_untouched() {
+        let mut p = sample_profile();
+        p.chosen
+            .insert("CHOICE-RULE-1".to_string(), "primary".to_string());
+        let unresolved = p.migrate_chosen_to_option_ids(&library_for_migration());
+        assert!(unresolved.is_empty());
+        assert_eq!(
+            p.chosen.get("CHOICE-RULE-1").map(String::as_str),
+            Some("primary"),
+        );
+    }
+
+    #[test]
+    fn migrate_reports_unresolvable_text() {
+        let mut p = sample_profile();
+        p.chosen.insert(
+            "CHOICE-RULE-1".to_string(),
+            "text that matches no option".to_string(),
+        );
+        let unresolved = p.migrate_chosen_to_option_ids(&library_for_migration());
+        assert_eq!(unresolved, vec!["CHOICE-RULE-1".to_string()]);
     }
 
     #[test]

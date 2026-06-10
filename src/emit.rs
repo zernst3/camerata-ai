@@ -10,11 +10,51 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-/// A principle the user chose. `chosen` is None to take the principle as-written,
-/// or Some(alternative) when the user picked one of its alternatives instead.
+/// A principle the user chose. `chosen` is None to take the rule's default
+/// option, or Some(option_id) to take a specific option by id. The id may name
+/// a library option or a custom option the architect authored (in which case
+/// the directive text is supplied via `custom_directive`).
+///
+/// For rules with no default (`decision.default` absent), `chosen` MUST resolve
+/// to a real option: an unresolved no-default rule cannot emit, because there
+/// is nothing to fall back to (see `resolve_directive`).
 pub struct Selection<'a> {
     pub principle: &'a Principle,
     pub chosen: Option<String>,
+    /// Directive text for a custom option whose id is not in the library (the
+    /// architect authored their own option). When `chosen` names an id absent
+    /// from the library, this text is the body. Library options resolve by id.
+    pub custom_directive: Option<String>,
+}
+
+impl<'a> Selection<'a> {
+    /// Construct a selection that takes the rule's default option.
+    pub fn new(principle: &'a Principle) -> Self {
+        Selection {
+            principle,
+            chosen: None,
+            custom_directive: None,
+        }
+    }
+
+    /// The directive text to emit for this selection, or None when the rule has
+    /// no default and the architect has not resolved it (route-to-human state).
+    ///
+    /// Resolution order: an explicit custom directive wins; else the chosen
+    /// option id is looked up in the library; else the rule's default option;
+    /// else None (no default, unresolved).
+    pub fn resolve_directive(&self) -> Option<&str> {
+        if let Some(text) = &self.custom_directive {
+            return Some(text.as_str());
+        }
+        match &self.chosen {
+            Some(id) => self.principle.option(id).map(|o| o.directive.as_str()),
+            None => self
+                .principle
+                .default_option()
+                .map(|o| o.directive.as_str()),
+        }
+    }
 }
 
 /// A free-text rule the user wrote that isn't in the library. Attaches to a
@@ -33,6 +73,8 @@ pub struct SelectionRecord<'a> {
     #[serde(flatten)]
     pub principle: &'a Principle,
     pub chosen: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_directive: Option<String>,
 }
 
 /// Render the user's resolved decisions as pretty JSON (machine-interchange).
@@ -42,6 +84,7 @@ pub fn selections_json(selections: &[Selection]) -> Result<String> {
         .map(|s| SelectionRecord {
             principle: s.principle,
             chosen: s.chosen.clone(),
+            custom_directive: s.custom_directive.clone(),
         })
         .collect();
     Ok(serde_json::to_string_pretty(&records)?)
@@ -80,33 +123,32 @@ fn default_target(p: &Principle) -> &'static str {
 }
 
 /// Render one principle as a markdown rule block (optionally scoped to a glob).
+/// Returns None when the rule has no default and the architect has not resolved
+/// it: a route-to-human decision does not emit until a position is chosen.
 ///
 /// The emitted block represents the project's *adopted* position on this
-/// principle, stated as a single directive the consumer agent follows at
-/// code-author time. The rule body is either the default summary (when
-/// `sel.chosen` is None) or the chosen alternative text (when `sel.chosen`
-/// is Some).
+/// principle, stated as a single directive (the resolved option's `directive`)
+/// the consumer agent follows at code-author time.
 ///
-/// Architect-only fields are deliberately NOT emitted: `alternatives`,
-/// `why`, `stance`, `tag`, and the `[choice]` block. Each of those exists
-/// to support the architect at curation time (picking which rule to adopt,
-/// reviewing rules in PRs, understanding the rule's reasoning), and
-/// including them in the consumer agent's input would introduce
-/// interpretation surfaces that compete with the directive itself. The
-/// consumer agent must see one unambiguous instruction; the emit is tuned
-/// for that determinism, not for transparency to a human reading the
-/// generated file.
-pub fn render(sel: &Selection, scope: Option<&str>) -> String {
+/// Architect-only fields are deliberately NOT emitted: the `[decision]` block,
+/// every option's `label` and `why`, and the non-adopted options. Each of those
+/// exists to support the architect at curation time (picking which option to
+/// adopt, reviewing rules in PRs, understanding the reasoning), and including
+/// them in the consumer agent's input would introduce interpretation surfaces
+/// that compete with the directive itself. The consumer agent must see one
+/// unambiguous instruction; the emit is tuned for that determinism, not for
+/// transparency to a human reading the generated file.
+pub fn render(sel: &Selection, scope: Option<&str>) -> Option<String> {
     let p = sel.principle;
+    let body = sel.resolve_directive()?;
     let mut s = String::new();
     s.push_str(&format!("### {} — {}\n", p.id, p.title));
-    let body = sel.chosen.as_deref().unwrap_or(p.summary.as_str());
     s.push_str(&format!("{body}\n"));
     if let Some(scope) = scope {
         s.push_str(&format!("\n_Applies to:_ `{scope}`\n"));
     }
     s.push('\n');
-    s
+    Some(s)
 }
 
 /// A stable hash of an arbitrary string, for the lockfile.
@@ -116,15 +158,24 @@ fn content_hash(s: &str) -> String {
     format!("{:016x}", h.finish())
 }
 
-/// A stable content hash of a principle's meaning, for the lockfile.
+/// A stable content hash of a principle's meaning AS ADOPTED, for the lockfile.
+/// Hashes the id, title, the resolved option id, and the resolved directive, so
+/// `outdated` fires when the upstream rule's adopted directive text changes.
 /// (std hasher; no crypto dep for v0.1.)
-fn principle_hash(p: &Principle) -> String {
+fn principle_hash(sel: &Selection) -> String {
+    let p = sel.principle;
     let mut h = DefaultHasher::new();
     p.id.hash(&mut h);
     p.title.hash(&mut h);
-    p.summary.hash(&mut h);
-    if let Some(w) = &p.why {
-        w.hash(&mut h);
+    // The resolved option id (default, chosen, or "custom"), then its directive.
+    let resolved_id = sel
+        .chosen
+        .clone()
+        .or_else(|| p.decision.default.clone())
+        .unwrap_or_else(|| "custom".to_string());
+    resolved_id.hash(&mut h);
+    if let Some(directive) = sel.resolve_directive() {
+        directive.hash(&mut h);
     }
     format!("{:016x}", h.finish())
 }
@@ -181,7 +232,11 @@ Do not edit this file by hand. To change the rules, edit the project's principle
 }
 
 /// Write the selected principles + any custom rules + a lockfile into `out_dir`.
-pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule]) -> Result<Outcome> {
+pub fn scaffold(
+    out_dir: &Path,
+    selections: &[Selection],
+    custom: &[CustomRule],
+) -> Result<Outcome> {
     fs::create_dir_all(out_dir)
         .with_context(|| format!("creating output dir `{}`", out_dir.display()))?;
 
@@ -203,6 +258,12 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
     });
 
     for sel in ordered {
+        // Skip rules with no default that the architect has not resolved: a
+        // route-to-human decision does not emit until a position is chosen.
+        if render(sel, None).is_none() {
+            continue;
+        }
+
         // Resolve target files (+ optional scope): explicit emits, else the
         // enforcement default.
         let targets: Vec<(String, Option<String>)> = if sel.principle.emits.is_empty() {
@@ -216,13 +277,19 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
         };
 
         for (target, scope) in targets {
-            let block = render(sel, scope.as_deref());
+            // Safe: the no-default skip above guarantees render returns Some.
+            let Some(block) = render(sel, scope.as_deref()) else {
+                continue;
+            };
             let filename = target_filename(&target).to_string();
-            buffers.entry(filename.clone()).or_default().push_str(&block);
+            buffers
+                .entry(filename.clone())
+                .or_default()
+                .push_str(&block);
             *counts.entry(filename).or_insert(0) += 1;
         }
 
-        installed.push((sel.principle.id.clone(), principle_hash(sel.principle)));
+        installed.push((sel.principle.id.clone(), principle_hash(sel)));
     }
 
     // Append any custom (user-authored) rules, grouped under their domain.
@@ -230,7 +297,11 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
         if c.name.trim().is_empty() && c.body.trim().is_empty() {
             continue;
         }
-        let domain = if c.domain.is_empty() { "*" } else { c.domain.as_str() };
+        let domain = if c.domain.is_empty() {
+            "*"
+        } else {
+            c.domain.as_str()
+        };
         let block = format!(
             "### CUSTOM-{} _(custom · domain: {})_\n{}\n\n",
             c.name.trim(),
@@ -244,7 +315,10 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
         // legacy default from before AGENTS.md became the cross-tool
         // standard.
         let filename = target_filename("aicodingrules").to_string();
-        buffers.entry(filename.clone()).or_default().push_str(&block);
+        buffers
+            .entry(filename.clone())
+            .or_default()
+            .push_str(&block);
         *counts.entry(filename).or_insert(0) += 1;
         installed.push((format!("CUSTOM-{}", c.name.trim()), content_hash(&block)));
     }
@@ -266,11 +340,12 @@ pub fn scaffold(out_dir: &Path, selections: &[Selection], custom: &[CustomRule])
          # Do not edit by hand; used to detect upstream updates (`camerata outdated`).\n\n",
     );
     for (id, hash) in &installed {
-        lock.push_str(&format!("[[installed]]\nid = \"{id}\"\nhash = \"{hash}\"\n\n"));
+        lock.push_str(&format!(
+            "[[installed]]\nid = \"{id}\"\nhash = \"{hash}\"\n\n"
+        ));
     }
     let lock_path = out_dir.join("camerata.lock");
-    fs::write(&lock_path, lock)
-        .with_context(|| format!("writing `{}`", lock_path.display()))?;
+    fs::write(&lock_path, lock).with_context(|| format!("writing `{}`", lock_path.display()))?;
 
     Ok(Outcome {
         files,
@@ -304,11 +379,16 @@ pub fn scaffold_routed(
             buckets.entry(target).or_default().0.push(Selection {
                 principle: s.principle,
                 chosen: s.chosen.clone(),
+                custom_directive: s.custom_directive.clone(),
             });
         }
     }
     for c in custom {
-        let domain = if c.domain.is_empty() { "*" } else { c.domain.as_str() };
+        let domain = if c.domain.is_empty() {
+            "*"
+        } else {
+            c.domain.as_str()
+        };
         for target in targets_for(domain) {
             buckets.entry(target).or_default().1.push(c.clone());
         }
@@ -328,13 +408,16 @@ mod tests {
     use crate::principle::{Layer, Principle};
     use tempfile::tempdir;
 
+    /// Build a new-schema principle with a default option whose directive is
+    /// `directive`, plus one non-default option. The default option's id is
+    /// "primary"; the alternative's id is "alt".
     fn principle(
         id: &str,
         title: &str,
         domain: &str,
         layer: Layer,
         enforcement: Enforcement,
-        summary: &str,
+        directive: &str,
     ) -> Principle {
         let toml_text = format!(
             r#"
@@ -345,9 +428,23 @@ domain = "{domain}"
 layer = "{layer}"
 enforcement = "{enforcement}"
 default = true
-summary = "{summary}"
+
+[decision]
+question = "the decision question this rule models"
+default = "primary"
 why = "the architect-only reasoning that must not appear in emitted output"
-alternatives = ["the loosened variant that must not appear in emitted output"]
+
+[[option]]
+id = "primary"
+label = "the canonical option"
+directive = "{directive}"
+why = "the architect-only per-option reasoning that must not appear in emit"
+
+[[option]]
+id = "alt"
+label = "the loosened option"
+directive = "the loosened variant that is the alternative directive"
+why = "looser; defensible only in narrow contexts"
 "#,
             layer = match layer {
                 Layer::Universal => "universal",
@@ -413,7 +510,7 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "the directive",
         );
-        let out = render(&Selection { principle: &p, chosen: None }, None);
+        let out = render(&Selection::new(&p), None).expect("default option renders");
         assert!(
             out.starts_with("### TEST-RENDER-1 — the rule title\n"),
             "header missing or malformed; got:\n{out}",
@@ -421,47 +518,115 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
     }
 
     #[test]
-    fn render_uses_default_summary_when_no_alternative_chosen() {
+    fn render_uses_default_option_directive_when_nothing_chosen() {
         let p = principle(
             "TEST-DEFAULT-1",
             "t",
             "*",
             Layer::Universal,
             Enforcement::Prose,
-            "the default summary directive",
+            "the default option directive",
         );
-        let out = render(&Selection { principle: &p, chosen: None }, None);
-        assert!(out.contains("the default summary directive"));
+        let out = render(&Selection::new(&p), None).expect("renders");
+        assert!(out.contains("the default option directive"));
     }
 
     #[test]
-    fn render_substitutes_chosen_alternative_for_default_summary() {
+    fn render_substitutes_chosen_option_directive_for_default() {
         let p = principle(
             "TEST-CHOICE-1",
             "t",
             "*",
             Layer::Universal,
             Enforcement::Prose,
-            "the default summary directive",
+            "the default option directive",
         );
         let out = render(
             &Selection {
                 principle: &p,
-                chosen: Some("the chosen alternative directive".to_string()),
+                chosen: Some("alt".to_string()),
+                custom_directive: None,
             },
             None,
-        );
-        assert!(out.contains("the chosen alternative directive"));
+        )
+        .expect("renders");
+        assert!(out.contains("the loosened variant that is the alternative directive"));
         assert!(
-            !out.contains("the default summary directive"),
-            "default summary leaked when an alternative was chosen; got:\n{out}",
+            !out.contains("the default option directive"),
+            "default directive leaked when an alternative was chosen; got:\n{out}",
         );
     }
 
     #[test]
+    fn render_uses_custom_directive_verbatim() {
+        let p = principle(
+            "TEST-CUSTOM-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "the default option directive",
+        );
+        let out = render(
+            &Selection {
+                principle: &p,
+                chosen: Some("my-own".to_string()),
+                custom_directive: Some("the architect's own directive".to_string()),
+            },
+            None,
+        )
+        .expect("renders");
+        assert!(out.contains("the architect's own directive"));
+    }
+
+    #[test]
+    fn render_returns_none_for_unresolved_no_default_rule() {
+        // A rule with no decision.default and no chosen option is route-to-human
+        // and must not emit.
+        let toml_text = r#"
+id = "TEST-NODEF-1"
+title = "open decision"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "which posture?"
+why = "no universal answer"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "defensible when X"
+
+[[option]]
+id = "b"
+label = "b"
+directive = "do b"
+why = "defensible when Y"
+"#;
+        let p: Principle = toml::from_str(toml_text).expect("parses");
+        assert!(render(&Selection::new(&p), None).is_none());
+        // But once resolved, it renders.
+        let resolved = render(
+            &Selection {
+                principle: &p,
+                chosen: Some("a".to_string()),
+                custom_directive: None,
+            },
+            None,
+        )
+        .expect("renders once resolved");
+        assert!(resolved.contains("do a"));
+    }
+
+    #[test]
     fn render_omits_architect_only_fields() {
-        // alternatives, why, stance, tag, and choice are architect-only and
-        // must never reach the consumer agent. This is the core v0.1 contract.
+        // The decision block, option labels, option whys, and non-adopted
+        // options are architect-only and must never reach the consumer agent.
         let p = principle(
             "TEST-OMIT-1",
             "t",
@@ -470,11 +635,34 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "the directive",
         );
-        let out = render(&Selection { principle: &p, chosen: None }, None);
-        assert!(!out.contains("architect-only reasoning"), "why leaked");
-        assert!(!out.contains("loosened variant"), "alternatives leaked");
-        assert!(!out.contains("tag"), "tag literal leaked");
-        assert!(!out.contains("stance"), "stance literal leaked");
+        let out = render(&Selection::new(&p), None).expect("renders");
+        assert!(
+            !out.contains("architect-only reasoning"),
+            "decision why leaked"
+        );
+        assert!(!out.contains("per-option reasoning"), "option why leaked");
+        assert!(
+            !out.contains("loosened variant"),
+            "non-adopted option leaked"
+        );
+        assert!(!out.contains("decision question"), "question leaked");
+    }
+
+    #[test]
+    fn render_byte_identical_to_legacy_default_emit_shape() {
+        // The new schema must emit byte-identically to the old shape for a rule
+        // adopted at its default: "### ID — TITLE\n<directive>\n\n".
+        let p = principle(
+            "ARCH-CURSOR-PAGINATION-1",
+            "List endpoints paginate by cursor, not by offset",
+            "api-layer",
+            Layer::Universal,
+            Enforcement::Structured,
+            "Any list endpoint that can grow uses opaque cursor tokens.",
+        );
+        let out = render(&Selection::new(&p), None).expect("renders");
+        let expected = "### ARCH-CURSOR-PAGINATION-1 — List endpoints paginate by cursor, not by offset\nAny list endpoint that can grow uses opaque cursor tokens.\n\n";
+        assert_eq!(out, expected);
     }
 
     #[test]
@@ -487,10 +675,7 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "directive",
         );
-        let out = render(
-            &Selection { principle: &p, chosen: None },
-            Some("**/*.rs"),
-        );
+        let out = render(&Selection::new(&p), Some("**/*.rs")).expect("renders");
         assert!(out.contains("_Applies to:_ `**/*.rs`"));
     }
 
@@ -513,18 +698,18 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Structured,
             "structured directive body",
         );
-        let selections = vec![
-            Selection { principle: &prose, chosen: None },
-            Selection { principle: &structured, chosen: None },
-        ];
+        let selections = vec![Selection::new(&prose), Selection::new(&structured)];
 
         let outcome = scaffold(dir.path(), &selections, &[]).expect("scaffold");
         assert_eq!(outcome.installed, 2);
 
         let agents = fs::read_to_string(dir.path().join("AGENTS.md")).expect("AGENTS.md exists");
-        let conv = fs::read_to_string(dir.path().join("CONVENTIONS.md"))
-            .expect("CONVENTIONS.md exists");
-        assert!(agents.contains("TEST-PROSE-1"), "prose rule landed in AGENTS.md");
+        let conv =
+            fs::read_to_string(dir.path().join("CONVENTIONS.md")).expect("CONVENTIONS.md exists");
+        assert!(
+            agents.contains("TEST-PROSE-1"),
+            "prose rule landed in AGENTS.md"
+        );
         assert!(
             !agents.contains("TEST-STRUCT-1"),
             "structured rule must NOT land in AGENTS.md",
@@ -537,6 +722,56 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             !conv.contains("TEST-PROSE-1"),
             "prose rule must NOT land in CONVENTIONS.md",
         );
+    }
+
+    #[test]
+    fn scaffold_skips_unresolved_no_default_rule() {
+        let dir = tempdir().expect("tempdir");
+        let toml_text = r#"
+id = "TEST-NODEF-2"
+title = "open decision"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "which posture?"
+why = "no universal answer"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "defensible when X"
+
+[[option]]
+id = "b"
+label = "b"
+directive = "do b"
+why = "defensible when Y"
+"#;
+        let nodef: Principle = toml::from_str(toml_text).expect("parses");
+        let resolved = principle(
+            "TEST-DEF-2",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Prose,
+            "resolved directive body",
+        );
+        let outcome = scaffold(
+            dir.path(),
+            &[Selection::new(&nodef), Selection::new(&resolved)],
+            &[],
+        )
+        .expect("scaffold");
+        // Only the resolved rule installs; the no-default rule is skipped.
+        assert_eq!(outcome.installed, 1);
+        let agents = fs::read_to_string(dir.path().join("AGENTS.md")).expect("AGENTS.md");
+        assert!(agents.contains("TEST-DEF-2"));
+        assert!(!agents.contains("TEST-NODEF-2"));
     }
 
     #[test]
@@ -567,9 +802,9 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             "framework body",
         );
         let selections = vec![
-            Selection { principle: &framework, chosen: None },
-            Selection { principle: &universal, chosen: None },
-            Selection { principle: &language, chosen: None },
+            Selection::new(&framework),
+            Selection::new(&universal),
+            Selection::new(&language),
         ];
 
         scaffold(dir.path(), &selections, &[]).expect("scaffold");
@@ -592,7 +827,7 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "body",
         );
-        let selections = vec![Selection { principle: &p, chosen: None }];
+        let selections = vec![Selection::new(&p)];
         scaffold(dir.path(), &selections, &[]).expect("scaffold");
 
         let lock = fs::read_to_string(dir.path().join("camerata.lock")).expect("lockfile exists");
@@ -652,20 +887,15 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "rust body",
         );
-        let selections = vec![
-            Selection { principle: &univ, chosen: None },
-            Selection { principle: &rust, chosen: None },
-        ];
+        let selections = vec![Selection::new(&univ), Selection::new(&rust)];
         let mut overrides: HashMap<String, Vec<PathBuf>> = HashMap::new();
         overrides.insert("rust".to_string(), vec![rust_out.clone()]);
 
-        scaffold_routed(&default_out, &overrides, &selections, &[])
-            .expect("scaffold_routed");
+        scaffold_routed(&default_out, &overrides, &selections, &[]).expect("scaffold_routed");
 
         let default_agents =
             fs::read_to_string(default_out.join("AGENTS.md")).expect("default AGENTS.md");
-        let rust_agents =
-            fs::read_to_string(rust_out.join("AGENTS.md")).expect("rust AGENTS.md");
+        let rust_agents = fs::read_to_string(rust_out.join("AGENTS.md")).expect("rust AGENTS.md");
         assert!(default_agents.contains("ROUTE-UNIV-1"));
         assert!(
             !default_agents.contains("ROUTE-RUST-1"),
@@ -679,7 +909,7 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
     }
 
     #[test]
-    fn selections_json_omits_keys_for_unchosen_alternatives() {
+    fn selections_json_serializes_chosen_option_id() {
         let p = principle(
             "TEST-JSON-1",
             "t",
@@ -688,8 +918,7 @@ alternatives = ["the loosened variant that must not appear in emitted output"]
             Enforcement::Prose,
             "body",
         );
-        let json =
-            selections_json(&[Selection { principle: &p, chosen: None }]).expect("json");
+        let json = selections_json(&[Selection::new(&p)]).expect("json");
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid json");
         let arr = parsed.as_array().expect("array");
         assert_eq!(arr.len(), 1);
