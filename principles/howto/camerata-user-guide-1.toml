@@ -5,8 +5,16 @@ domain = "howto"
 layer = "universal"
 enforcement = "prose"
 default = false
-stance = "default"
-summary = """
+
+[decision]
+question = "What position does the project take on: Camerata user guide (read this first)?"
+default = "camerata-user-guide-read-this-first"
+why = "Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README. The right pane already renders principle text well; reusing that surface keeps the chrome minimal. Documenting only in the README forces a newcomer to leave the tool to learn how it works, which they often will not do on first launch; the cost is felt as confusion at the GUI without an obvious recovery path. Building a separate Help menu or dedicated help window adds chrome for content the principle-detail pane already renders well, and the help surface then has to be kept in sync with the actual UX through a second update path."
+
+[[option]]
+id = "camerata-user-guide-read-this-first"
+label = "Camerata user guide (read this first)"
+directive = """
 # Welcome to camerata
 
 camerata composes AI-orchestration principles into installable guardrails for your repos. It is a small Rust tool with a CLI and this Dioxus Desktop GUI. The library ships with a curated set of canonical principles across universal, capability, and stack domains, and you compose the ones that fit your project.
@@ -122,8 +130,16 @@ A saved snapshot of what you selected, stored by id. Resilient to canonical rule
 
 The CAMERATA-QA.md file in the repo contains a numbered trace of every UX element. Cite a section number in any bug report you file.
 """
-why = "Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README. The right pane already renders principle text well; reusing that surface keeps the chrome minimal. Documenting only in the README forces a newcomer to leave the tool to learn how it works, which they often will not do on first launch; the cost is felt as confusion at the GUI without an obvious recovery path. Building a separate Help menu or dedicated help window adds chrome for content the principle-detail pane already renders well, and the help surface then has to be kept in sync with the actual UX through a second update path."
-alternatives = [
-    "the camerata user guide lives only in the repository README; the GUI itself does not surface the guide in-tool, and users learn the workflow by reading the README before launch",
-    "the user guide ships as a separate Help menu or dedicated help window in the GUI, with its own chrome and rendering surface distinct from the principle-detail pane",
-]
+why = "The adopted default. Putting the user guide inside the GUI itself means it is always available to whoever is running the tool, even before they have read the README."
+
+[[option]]
+id = "the-camerata-user-guide-lives-only-in-the-reposi"
+label = "the camerata user guide lives only in the repository …"
+directive = "the camerata user guide lives only in the repository README; the GUI itself does not surface the guide in-tool, and users learn the workflow by reading the README before launch"
+why = "A defensible alternative the project considered and did not adopt as the default."
+
+[[option]]
+id = "the-user-guide-ships-as-a-separate-help-menu-or"
+label = "the user guide ships as a separate Help menu …"
+directive = "the user guide ships as a separate Help menu or dedicated help window in the GUI, with its own chrome and rendering surface distinct from the principle-detail pane"
+why = "A defensible alternative the project considered and did not adopt as the default."

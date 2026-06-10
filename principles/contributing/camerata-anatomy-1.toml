@@ -5,8 +5,17 @@ domain = "contributing"
 layer = "universal"
 enforcement = "structured"
 default = false
-stance = "default"
-summary = """A canonical rule is a principle that ships in the camerata-ai library itself, added by a domain SME via a pull request to the open-source repo. (For rules you only want to keep in your own project, use the + custom rule button on any non-contributing domain instead.)
+
+[decision]
+question = "What position does the project take on: Anatomy of a camerata principle (read this before adding one)?"
+default = "anatomy-of-a-camerata-principle-read-this-before"
+why = "Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors. A new file in the right folder plus this template is the whole bar. Keeping the schema only in CONTRIBUTING.md leaves it invisible to contributors browsing the GUI, and the doc drifts from the actual TOML shape over time because nothing forces them to stay aligned. Asking new contributors to infer the schema by reading existing rule files works while the library is small but breaks once the rule count grows enough that the conventions are scattered across many files, and it slows every new contributor's first PR by making them reverse-engineer the contract."
+
+[[option]]
+id = "anatomy-of-a-camerata-principle-read-this-before"
+label = "Anatomy of a camerata principle (read this before adding one)"
+directive = """
+A canonical rule is a principle that ships in the camerata-ai library itself, added by a domain SME via a pull request to the open-source repo. (For rules you only want to keep in your own project, use the + custom rule button on any non-contributing domain instead.)
 
 The canonical rule itself is a small TOML file in principles/<domain>/.
 
@@ -24,8 +33,16 @@ layer values: universal | language | library | framework (the precedence order).
 enforcement values: prose | structured | mechanical (what kind of artifact the rule emits when installed).
 
 Every rule states a default, a why it was chosen, and the alternatives considered, so a reader can disagree on the merits rather than guess at intent."""
-why = "Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors. A new file in the right folder plus this template is the whole bar. Keeping the schema only in CONTRIBUTING.md leaves it invisible to contributors browsing the GUI, and the doc drifts from the actual TOML shape over time because nothing forces them to stay aligned. Asking new contributors to infer the schema by reading existing rule files works while the library is small but breaks once the rule count grows enough that the conventions are scattered across many files, and it slows every new contributor's first PR by making them reverse-engineer the contract."
-alternatives = [
-    "the principle schema is documented only in CONTRIBUTING.md; the GUI itself does not surface a rule that explains how to add a new principle",
-    "new contributors learn the principle schema by reading existing files in principles/ and inferring the conventions, with no in-tool reference rule and no centralized schema document",
-]
+why = "The adopted default. Surfacing the schema as a rule inside the tool itself is the lowest-friction onboarding for contributors."
+
+[[option]]
+id = "the-principle-schema-is-documented-only-in-contr"
+label = "the principle schema is documented only in CONTRIBUTING.md; the …"
+directive = "the principle schema is documented only in CONTRIBUTING.md; the GUI itself does not surface a rule that explains how to add a new principle"
+why = "A defensible alternative the project considered and did not adopt as the default."
+
+[[option]]
+id = "new-contributors-learn-the-principle-schema-by-r"
+label = "new contributors learn the principle schema by reading existing …"
+directive = "new contributors learn the principle schema by reading existing files in principles/ and inferring the conventions, with no in-tool reference rule and no centralized schema document"
+why = "A defensible alternative the project considered and did not adopt as the default."
