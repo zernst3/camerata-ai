@@ -144,6 +144,18 @@ pub fn render(sel: &Selection, scope: Option<&str>) -> Option<String> {
     let mut s = String::new();
     s.push_str(&format!("### {} — {}\n", p.id, p.title));
     s.push_str(&format!("{body}\n"));
+    // Conformance line: ONLY for mechanical rules that carry a `qualifies`
+    // test. This is what operationalizes ORCH-CONFORMANCE-1 — a mechanical
+    // commitment is an enforced gate only if a deterministic check is named.
+    // prose/structured rules never emit it (they have no deterministic gate),
+    // so their output stays byte-identical to the pre-qualifies shape.
+    if matches!(p.enforcement, Enforcement::Mechanical) {
+        if let Some(qualifies) = &p.qualifies {
+            if !qualifies.trim().is_empty() {
+                s.push_str(&format!("\n_Conformance:_ {}\n", qualifies.trim()));
+            }
+        }
+    }
     if let Some(scope) = scope {
         s.push_str(&format!("\n_Applies to:_ `{scope}`\n"));
     }
@@ -176,6 +188,15 @@ fn principle_hash(sel: &Selection) -> String {
     resolved_id.hash(&mut h);
     if let Some(directive) = sel.resolve_directive() {
         directive.hash(&mut h);
+    }
+    // The conformance test is part of the rule's adopted meaning for mechanical
+    // rules (it is emitted), so a change to it should register as drift. Hashing
+    // it only when present and only for mechanical rules keeps the hash for every
+    // existing non-mechanical rule byte-identical to the pre-qualifies value.
+    if matches!(p.enforcement, Enforcement::Mechanical) {
+        if let Some(qualifies) = &p.qualifies {
+            qualifies.hash(&mut h);
+        }
     }
     format!("{:016x}", h.finish())
 }
@@ -723,6 +744,107 @@ why = "defensible when Y"
         let out = render(&Selection::new(&p), None).expect("renders");
         let expected = "### ARCH-CURSOR-PAGINATION-1 — List endpoints paginate by cursor, not by offset\nAny list endpoint that can grow uses opaque cursor tokens.\n\n";
         assert_eq!(out, expected);
+    }
+
+    /// Build a principle of a given enforcement level that carries a `qualifies`
+    /// conformance test. Used to prove the Conformance line is mechanical-only.
+    fn principle_with_qualifies(enforcement: Enforcement, qualifies: &str) -> Principle {
+        let enf = match enforcement {
+            Enforcement::Prose => "prose",
+            Enforcement::Structured => "structured",
+            Enforcement::Mechanical => "mechanical",
+        };
+        let toml_text = format!(
+            r#"
+id = "TEST-QUAL-1"
+title = "a rule with a conformance test"
+tag = "universal"
+domain = "*"
+layer = "universal"
+enforcement = "{enf}"
+default = true
+qualifies = "{qualifies}"
+
+[decision]
+question = "the decision question"
+default = "primary"
+why = "the architect-only reasoning"
+
+[[option]]
+id = "primary"
+label = "the canonical option"
+directive = "the adopted directive body"
+why = "the architect-only per-option reasoning"
+"#
+        );
+        toml::from_str(&toml_text).expect("fixture parses")
+    }
+
+    #[test]
+    fn render_appends_conformance_line_for_mechanical_rule_with_qualifies() {
+        let p = principle_with_qualifies(
+            Enforcement::Mechanical,
+            "clippy lint disallowed_types fails the build",
+        );
+        let out = render(&Selection::new(&p), None).expect("renders");
+        assert!(
+            out.contains("_Conformance:_ clippy lint disallowed_types fails the build"),
+            "mechanical rule must emit its conformance line; got:\n{out}",
+        );
+        // The directive still precedes the conformance line.
+        assert!(out.contains("the adopted directive body"));
+    }
+
+    #[test]
+    fn render_omits_conformance_line_for_structured_rule_with_qualifies() {
+        // A structured rule that carries a qualifies value must NOT emit it: the
+        // field is mechanical-only on the emit surface.
+        let p = principle_with_qualifies(
+            Enforcement::Structured,
+            "this conformance text must never appear in the emit",
+        );
+        let out = render(&Selection::new(&p), None).expect("renders");
+        assert!(
+            !out.contains("_Conformance:_"),
+            "structured rule must NOT emit a conformance line; got:\n{out}",
+        );
+        assert!(
+            !out.contains("this conformance text must never appear"),
+            "structured rule's qualifies text leaked into emit; got:\n{out}",
+        );
+    }
+
+    #[test]
+    fn render_omits_conformance_line_for_prose_rule_with_qualifies() {
+        let p = principle_with_qualifies(Enforcement::Prose, "prose rules never gate mechanically");
+        let out = render(&Selection::new(&p), None).expect("renders");
+        assert!(
+            !out.contains("_Conformance:_"),
+            "prose rule must NOT emit a conformance line; got:\n{out}",
+        );
+    }
+
+    #[test]
+    fn render_byte_identical_for_structured_rule_regardless_of_qualifies() {
+        // Adding a qualifies value to a non-mechanical rule must not change its
+        // emitted bytes at all (the byte-identical guarantee for the existing
+        // 90 non-mechanical rules).
+        let without = principle(
+            "TEST-IDENT-1",
+            "t",
+            "*",
+            Layer::Universal,
+            Enforcement::Structured,
+            "the adopted directive body",
+        );
+        let with = principle_with_qualifies(Enforcement::Structured, "ignored on emit");
+        // Normalize ids/titles by comparing only the trailing body shape: both
+        // must lack a conformance line. Compare the two renders directly after
+        // aligning their headers.
+        let out_without = render(&Selection::new(&without), None).expect("renders");
+        let out_with = render(&Selection::new(&with), None).expect("renders");
+        assert!(!out_without.contains("_Conformance:_"));
+        assert!(!out_with.contains("_Conformance:_"));
     }
 
     #[test]

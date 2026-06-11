@@ -19,6 +19,7 @@
 //! - Every option has a non-empty id, label, directive, and why.
 //! - Option ids are unique within the rule.
 //! - `decision.default`, when present, names an existing option id.
+//! - Mechanical rules declare a non-empty `qualifies` conformance test.
 //! - Content fields contain no backtick characters.
 //! - Reports (does not fail) the count of no-default rules.
 //!
@@ -252,6 +253,29 @@ fn check_file(
                     message: format!("option[{i}] (`{}`) has an empty {field}", opt.id),
                 });
             }
+        }
+    }
+
+    // Mechanical rules MUST carry a `qualifies` conformance test. The field is
+    // emitted as the rule's Conformance line and is what makes a mechanical
+    // commitment an enforced gate rather than a hollow claim (ORCH-CONFORMANCE-1).
+    // prose/structured rules may carry it but it is neither required nor emitted.
+    if matches!(
+        principle.enforcement,
+        camerata::principle::Enforcement::Mechanical
+    ) {
+        let missing = principle
+            .qualifies
+            .as_deref()
+            .map(|q| q.trim().is_empty())
+            .unwrap_or(true);
+        if missing {
+            violations.push(Violation {
+                file: path.to_path_buf(),
+                id: principle.id.clone(),
+                kind: "qualifies-required-on-mechanical",
+                message: "a mechanical rule MUST declare a `qualifies` conformance test (the deterministic check that proves adherence); add prose describing the check or a runnable command".to_string(),
+            });
         }
     }
 
@@ -631,6 +655,75 @@ why = "defensible when Y"
         );
         assert!(violations.is_empty(), "no-default rule should not violate");
         assert_eq!(no_default_ids, vec!["TEST-NODEF-1".to_string()]);
+    }
+
+    #[test]
+    fn mechanical_rule_without_qualifies_is_flagged() {
+        let text = r#"
+id = "TEST-MECH-NOQUAL-1"
+title = "a mechanical rule missing its conformance test"
+tag = "universal"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+
+[decision]
+question = "q"
+default = "a"
+why = "w"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "w"
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            kinds.contains(&"qualifies-required-on-mechanical"),
+            "expected qualifies-required-on-mechanical; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn mechanical_rule_with_qualifies_passes() {
+        let text = r#"
+id = "TEST-MECH-QUAL-1"
+title = "a mechanical rule with its conformance test"
+tag = "universal"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+qualifies = "a clippy lint fails the build if the forbidden pattern appears"
+
+[decision]
+question = "q"
+default = "a"
+why = "w"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "w"
+"#;
+        let (_d, kinds) = check_one(text);
+        assert!(
+            !kinds.contains(&"qualifies-required-on-mechanical"),
+            "mechanical rule with qualifies should not flag; got {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn structured_rule_without_qualifies_is_fine() {
+        // The requirement is mechanical-only; a structured rule needs no qualifies.
+        let text = valid_rule("TEST-STRUCT-NOQUAL-1")
+            .replace(r#"enforcement = "prose""#, r#"enforcement = "structured""#);
+        let (_d, kinds) = check_one(&text);
+        assert!(
+            !kinds.contains(&"qualifies-required-on-mechanical"),
+            "structured rule must not require qualifies; got {kinds:?}",
+        );
     }
 
     #[test]

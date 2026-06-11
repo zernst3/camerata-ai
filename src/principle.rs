@@ -121,6 +121,20 @@ pub struct Principle {
     /// by `decision.default`. At least one entry; the schema invites disagreement.
     #[serde(default, rename = "option")]
     pub options: Vec<Opt>,
+    /// A deterministic conformance test that proves a project adheres to this
+    /// rule's adopted directive: prose describing the check, or a runnable
+    /// command (a grep pattern, a clippy/eslint lint, a CI invocation, a test).
+    ///
+    /// Architect-and-consumer-facing, but only for `mechanical` rules: it is
+    /// emitted as a labelled "Conformance:" line attached to the rule's
+    /// CONVENTIONS.md entry, where it operationalizes ORCH-CONFORMANCE-1 (a
+    /// codified commitment is an enforced gate only if a deterministic check is
+    /// wired into the pipeline). For `prose` and `structured` rules the field is
+    /// accepted but never emitted: those enforcement levels have no deterministic
+    /// gate to point the consumer agent at. Optional on every rule; the linter
+    /// requires it on `mechanical` rules so the gate-text invariant holds.
+    #[serde(default)]
+    pub qualifies: Option<String>,
     #[serde(default)]
     pub emits: Vec<Emit>,
 }
@@ -253,6 +267,37 @@ why = "defensible when Y"
     fn optional_fields_default_to_empty() {
         let p: Principle = toml::from_str(minimal_toml()).expect("parses");
         assert!(p.emits.is_empty());
+        // qualifies is optional and absent on the minimal fixture.
+        assert!(p.qualifies.is_none());
+    }
+
+    #[test]
+    fn qualifies_parses_when_present() {
+        let toml_text = r#"
+id = "TEST-QUAL-1"
+title = "a rule with a conformance test"
+tag = "universal"
+layer = "universal"
+enforcement = "mechanical"
+default = true
+qualifies = "grep -r 'forbidden' src/ exits non-zero"
+
+[decision]
+question = "q"
+default = "o"
+why = "w"
+
+[[option]]
+id = "o"
+label = "l"
+directive = "d"
+why = "w"
+"#;
+        let p: Principle = toml::from_str(toml_text).expect("parses");
+        assert_eq!(
+            p.qualifies.as_deref(),
+            Some("grep -r 'forbidden' src/ exits non-zero")
+        );
     }
 
     #[test]
