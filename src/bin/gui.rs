@@ -20,12 +20,13 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 fn main() {
-    // LastWindowHides keeps the runtime alive when the OS close button is
+    // WindowHides keeps the runtime alive when the OS close button is
     // clicked, so we can intercept the close and prompt the user to save.
     // The window is auto-hidden by the runtime after our wry handler runs;
     // a use_effect in app() re-shows it so the prompt is visible.
+    // (Renamed from LastWindowHides in dioxus 0.7.)
     let cfg = dioxus::desktop::Config::new()
-        .with_close_behaviour(dioxus::desktop::WindowCloseBehaviour::LastWindowHides)
+        .with_close_behaviour(dioxus::desktop::WindowCloseBehaviour::WindowHides)
         .with_window(dioxus::desktop::WindowBuilder::new().with_title("Camerata"));
     LaunchBuilder::desktop().with_cfg(cfg).launch(app);
 }
@@ -541,7 +542,7 @@ fn app() -> Element {
     let window_ctx = dioxus::desktop::use_window();
 
     // Intercept the OS window close button. The wry handler runs before
-    // the runtime's LastWindowHides behavior, so we set the prompt flag
+    // the runtime's WindowHides behavior, so we set the prompt flag
     // here; the use_effect below re-shows the window after the auto-hide.
     {
         use dioxus::desktop::tao::event::{Event, WindowEvent as TaoWindowEvent};
@@ -557,7 +558,7 @@ fn app() -> Element {
     }
 
     // Re-show the window when the exit prompt opens. The runtime hides the
-    // window after a CloseRequested event (because of LastWindowHides), so
+    // window after a CloseRequested event (because of WindowHides), so
     // without this the prompt would be invisible to the user.
     {
         let window_ctx = window_ctx.clone();
