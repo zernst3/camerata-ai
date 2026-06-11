@@ -5,6 +5,7 @@ domain = "api-layer"
 layer = "universal"
 enforcement = "mechanical"
 default = true
+qualifies = "Prose check, enforced by an architecture-boundary lint rule that blocks direct database/query calls outside the repository layer (an ESLint rule restricting the DB client to repository files, a Rust visibility or clippy-style restriction, or the stack equivalent), with transaction flow-control in services exempted. Conformance holds when that rule runs in CI and a query issued from a controller or service is rejected; it fails when DB access can happen from any layer with no mechanical boundary."
 
 [decision]
 question = "What position does the project take on: Strict layering — services orchestrate, repositories own data access?"

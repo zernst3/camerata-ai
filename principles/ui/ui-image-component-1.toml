@@ -5,6 +5,7 @@ domain = "ui"
 layer = "universal"
 enforcement = "mechanical"
 default = true
+qualifies = "Enforced by an ESLint no-restricted-imports / no-restricted-syntax rule (or the stack's equivalent) that forbids framework image primitives and raw image elements in feature code (next/image, the Vue or Flutter Image widget, raw img tags), routing every image through the single project-level image component. Conformance holds when that lint rule runs in CI and a feature file using a framework primitive or raw img fails the build; it fails when no rule blocks direct primitive use and call sites can render images however they like."
 
 [decision]
 question = "What position does the project take on: Images render through a single project-level component, not framework primitives directly?"

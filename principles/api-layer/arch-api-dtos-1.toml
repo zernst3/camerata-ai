@@ -5,6 +5,7 @@ domain = "api-layer"
 layer = "universal"
 enforcement = "mechanical"
 default = true
+qualifies = "Prose check, enforced by an import-boundary lint rule (an ESLint no-restricted-imports / import boundaries rule, a Rust module-visibility or clippy-style restriction, or the equivalent for the stack): controller and route-handler files are forbidden from importing domain types, so request and response types resolve to DTOs only. Conformance holds when that lint rule exists and runs in CI and an attempt to reference a domain type from a controller fails the build; it fails when no rule blocks the import and a controller can return a domain type directly."
 
 [decision]
 question = "What position does the project take on: API request and response types are DTOs, never domain types?"

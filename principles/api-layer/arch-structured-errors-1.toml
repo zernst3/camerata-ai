@@ -5,6 +5,7 @@ domain = "api-layer"
 layer = "universal"
 enforcement = "mechanical"
 default = true
+qualifies = "Prose check: a single error-rendering middleware owns all 4xx/5xx responses, and a contract test asserts every error response carries the envelope shape (a top-level error object with a stable code, a human message, and optional details). The realistic mechanism is a test that hits representative failure paths and validates the response body against the envelope schema, plus a review or lint check that handlers throw typed errors rather than writing ad hoc bodies. Conformance holds when such a test runs in CI and a handler that returns a bare string or an empty body fails it; it fails when error shapes vary per endpoint with no shared renderer."
 
 [decision]
 question = "What position does the project take on: Error responses use a structured envelope with stable machine-readable codes?"

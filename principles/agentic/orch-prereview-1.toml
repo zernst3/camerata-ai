@@ -5,6 +5,7 @@ domain = "agentic"
 layer = "universal"
 enforcement = "mechanical"
 default = true
+qualifies = "Prose check (applies once the project adopts the AI-pre-review position): an AI reviewer step is wired into the change pipeline as a pre-merge hook, a CI job, or a bot on the pull request, such that a change cannot reach the human merge gate without an approval status from the reviewer agent. Conformance holds when the pipeline configuration shows that required reviewer status and an unreviewed change is blocked from the human queue; it fails when AI-authored changes flow to human review with no enforced reviewer-agent verdict gating them."
 
 [decision]
 question = "How should AI-authored changes flow toward the human review gate?"

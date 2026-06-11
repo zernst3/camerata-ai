@@ -5,6 +5,7 @@ domain = "javascript:next"
 layer = "framework"
 enforcement = "mechanical"
 default = true
+qualifies = "Enforced by an ESLint no-restricted-imports / no-restricted-globals rule that forbids the raw fetch global (and direct fetch usage) in components and route handlers, routing all calls through the two sanctioned helpers; the server-only helper additionally imports the server-only package so any client-bundle import of it is a build-time error. Conformance holds when the lint rule and the server-only guard are configured and a raw fetch call or a client import of the server helper fails the build; it fails when neither guard is present and call sites can fetch directly."
 
 [decision]
 question = "What position does the project take on: Two sanctioned API helpers: client vs server-only?"
