@@ -175,7 +175,7 @@ A rule models one architectural **decision** with a uniform list of **options**.
 - `enforcement` — declares how strongly the rule CAN be enforced once installed, and signals the AI agent what kind of artifact to produce:
   - **`prose`** — guidance the agent reads and follows; no automated check. Installed as a paragraph in AGENTS.md / the aicodingrules file. Best for heuristics (robustness over terseness, the clear-winner test).
   - **`structured`** — a rule with an ID that gets cited in commits, PRs, and review comments. Installed as an entry in CONVENTIONS.md. Verified by grep and review, not an automated gate. Best for architectural patterns.
-  - **`mechanical`** — a rule that *can* be enforced by a deterministic tool (lint, hook, CI check, type-system constraint). Installed as the convention text **plus a directive to the agent to set up the actual mechanism** (write the lint, add the GitHub Action, configure the type pattern).
+  - **`mechanical`** — a rule that *can* be enforced by a deterministic tool (lint, hook, CI check, type-system constraint). Installed as the convention text **plus a directive to the agent to set up the actual mechanism** (write the lint, add the GitHub Action, configure the type pattern). Every mechanical rule carries a `qualifies` conformance test (see Optional fields below) that emits as its `_Conformance:_` line.
 
   **Important:** declaring a rule `mechanical` does NOT create the lint rule or workflow. It is a directive to the AI agent (or developer) to implement that enforcement when scaffolding the project. The principle text describes what the mechanism should check; wiring it up is still real work. A rule marked `mechanical` with no mechanism actually installed is degraded to `structured` in practice.
 
@@ -191,6 +191,7 @@ A rule models one architectural **decision** with a uniform list of **options**.
 - `why` — per-option rationale (why it is or is not the default)
 
 **Optional**
+- `qualifies` — a deterministic conformance test that proves adherence to the adopted directive: prose describing the check, or a runnable command (grep, clippy/eslint, CI, a test). **Required on `mechanical` rules**, where it emits as the rule's `_Conformance:_` line in CONVENTIONS.md; accepted but never emitted on `prose`/`structured` rules. This is the field that operationalizes `ORCH-CONFORMANCE-1` (a codified commitment is an enforced gate only when a deterministic check is named).
 - `emits` — list of `{ target, scope? }` declaring where this rule's artifact lands
 
 Example:
@@ -250,6 +251,7 @@ A small Rust linter (`src/bin/lint.rs`, run as `cargo run --bin camerata-lint`) 
 - `id` matches the canonical format `AREA-TOPIC-NUMBER`.
 - `id` is unique across the entire library.
 - At least one `[[option]]`, every option has a non-empty id/label/directive/why, option ids are unique within the rule, and `decision.default` (when present) names an existing option.
+- Every `mechanical` rule declares a non-empty `qualifies` conformance test.
 - Title, the decision fields, and every option field contain no backtick characters.
 
 Run the linter locally before opening a PR:

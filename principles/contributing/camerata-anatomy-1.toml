@@ -20,7 +20,9 @@ A canonical rule is a principle that ships in the camerata-ai library itself, ad
 The canonical rule itself is a small TOML file in principles/<domain>/.
 
 Top-level required fields: id, title, tag, domain, layer, enforcement, default.
-The rule then carries a [decision] block (question, optional default, why) and one or more [[option]] entries (id, label, directive, why). Optional: emits.
+The rule then carries a [decision] block (question, optional default, why) and one or more [[option]] entries (id, label, directive, why). Optional top-level fields: qualifies and emits.
+
+The qualifies field is a deterministic conformance test that proves a project adheres to the rule's adopted directive: prose describing the check, or a runnable command (a grep pattern, a clippy or eslint lint, a CI invocation, a test). It is REQUIRED on mechanical rules (the linter enforces it) and is emitted as the rule's Conformance line in CONVENTIONS.md; it is accepted but never emitted on prose and structured rules. qualifies is the field that operationalizes ORCH-CONFORMANCE-1: a codified commitment is an enforced gate only when a deterministic check is named. Write a real command only when it is genuinely correct on the target stack; otherwise write precise prose.
 
 A rule models one architectural DECISION with a uniform list of OPTIONS. Each option's directive is a single self-contained instruction the downstream agent reads at code-author time; everything else (the decision block, option labels, option whys, and the non-adopted options) is architect-facing curation scaffolding and is never emitted.
 

@@ -49,9 +49,14 @@ The rule then carries a `[decision]` block and one or more `[[option]]` entries:
 | `option.directive` | string | The consumer-facing instruction emitted when this option is adopted. Plain prose, no markdown formatting, no code blocks, no opt-out paths. |
 | `option.why` | string | Per-option rationale (why it is or is not the default). **Architect-only; not emitted.** |
 
-Optional: `emits` (declarative routing override).
+Optional top-level fields:
 
-The linter rejects schema violations on every PR. It also runs content checks: id format, id uniqueness across the library, at least one option, non-empty option fields, option-id uniqueness within a rule, that `decision.default` (when present) names an existing option, and a no-backticks check on title, the decision fields, and every option field. It reports (without failing) the count of no-default rules.
+| Field | Type | Notes |
+|---|---|---|
+| `qualifies` | string (optional) | A deterministic conformance test that proves adherence to the rule's adopted directive: prose describing the check, or a runnable command (a grep pattern, a clippy/eslint lint, a CI invocation, a test). **Required on `mechanical` rules** (the linter enforces it) and emitted as the rule's `_Conformance:_` line in CONVENTIONS.md; accepted but **never emitted** on `prose`/`structured` rules, which have no deterministic gate. This is the field that operationalizes `ORCH-CONFORMANCE-1`. |
+| `emits` | inline table list | Declarative routing override that pins a rule to a specific output file or scope. |
+
+The linter rejects schema violations on every PR. It also runs content checks: id format, id uniqueness across the library, at least one option, non-empty option fields, option-id uniqueness within a rule, that `decision.default` (when present) names an existing option, that every `mechanical` rule declares a non-empty `qualifies`, and a no-backticks check on title, the decision fields, and every option field. It reports (without failing) the count of no-default rules.
 
 ---
 
@@ -103,6 +108,7 @@ The two audiences have opposite needs. The architect benefits from rich context:
 | `option.label` | architect | Short selection-UI label for the option. | A few words; no parenthetical tradeoffs. |
 | `option.directive` | **consumer** | The instruction emitted when this option is adopted. | Single clear directive. Plain prose. No hedging, no opt-out paths, no "or you might" clauses. Property-shaped (per rule #7). |
 | `option.why` | architect | Per-option rationale: why this option is or is not the default. | Explains why; no directive content. |
+| `qualifies` | architect + **consumer** (mechanical only) | The deterministic conformance test that proves adherence. Emitted as the `_Conformance:_` line on `mechanical` rules; architect-only and unemitted on prose/structured. | A runnable command where genuinely correct, else precise prose describing the check. No backticks. |
 | `emits` | architect | Optional declarative routing override that pins a rule to a specific output file or scope. | TOML inline table; explicit per-output entries. |
 
 **The only fields the consumer agent ever sees: `id`, `title`, and the adopted option's `directive`.** The adopted option is the one named by `decision.default`, or the one the architect picked. Every other field is curation-time scaffolding the consumer never reads.
@@ -254,6 +260,8 @@ This top-level `default` bool is distinct from `decision.default`. The bool cont
 
 Claiming `mechanical` without committing to provide the mechanism is a hollow claim and degrades the level to `structured` in practice. Either provide the mechanism (or describe it concretely enough that the downstream agent can implement it) or downgrade.
 
+Every `mechanical` rule must declare a `qualifies` conformance test (the linter enforces it). `qualifies` is the deterministic check that proves adherence: a runnable command where one is genuinely correct (a grep pattern, a clippy/eslint lint, a CI invocation, a test) or precise prose describing the check where no portable command exists. **Never write a command you cannot verify would actually pass or fail as described** — a wrong command is worse than prose. The conformance test is emitted as the rule's `_Conformance:_` line in CONVENTIONS.md, where it gives the downstream agent the gate to wire up, and it operationalizes [[ORCH-CONFORMANCE-1]].
+
 ### 11. Domain-selection metadata is maintainer-only
 
 The list of domains that ship pre-selected when the GUI launches is the `DEFAULT_SELECTED_DOMAINS` const in [`src/lib.rs`](src/lib.rs). Currently only `*` (Universal) and `agentic` ship pre-selected. **A PR contributing a new rule, capability domain, or stack profile must not modify this const.** Promoting a domain into the default-selected set is a maintainer-only decision; the PR linter rejects any PR that modifies the relevant lines without an explicit maintainer override.
@@ -292,6 +300,8 @@ When the upsert encounters a conflict between an upstream library update and a u
 **No reverse-engineering of a profile from an existing repo.** Camerata cannot today read a target repo's AGENTS.md / CONVENTIONS.md / camerata.lock and reconstruct a Profile JSON from them. The lock file records installed IDs and content hashes, and we could in principle parse the emit files back into a profile, but two things make this nontrivial enough to defer: (1) recovering which option was chosen requires text-matching the emitted body against each option's directive, which is fragile to whitespace and casing changes, and (2) custom rules live in AGENTS.md under their `CUSTOM-name` headings and parsing them back into the Profile schema requires careful handling of edge cases. v0.2 will introduce a `camerata import` subcommand that performs this reconstruction with an explicit "best effort" caveat.
 
 **Stable option IDs and per-option `why` are now part of the schema.** The two former roadmap items (stable alternative IDs and a per-alternative `why` field) shipped together in the decision-first schema: every option carries a stable `id` (citable in commits and stored in profiles) and its own `why` alongside its `directive`. The rule-level reasoning now lives in `decision.why`, and per-option rejection rationale lives in each `option.why`. Author new rules directly in this shape; there is no longer an alternatives array.
+
+**Per-rule conformance tests (`qualifies`) shipped.** Every rule may carry an optional `qualifies` field: a deterministic conformance test (prose or a runnable command) that proves adherence to the adopted directive. It is required on `mechanical` rules and emitted as their `_Conformance:_` line, which is what finally operationalizes [[ORCH-CONFORMANCE-1]] (a codified commitment becomes an enforced gate only when a deterministic check is named). The field was first invented downstream in a consumer project's project-local rules and is now part of the canonical schema.
 
 ---
 
