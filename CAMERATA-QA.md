@@ -4,7 +4,7 @@ This document traces every piece of user-facing functionality in the Camerata GU
 
 If something below doesn't match what you see, open an issue with the section number, what you expected, and what actually happened.
 
-Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
+Tested against: `camerata-gui` v0.2.0 (Dioxus Desktop).
 
 ---
 
@@ -22,15 +22,15 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 ## 2. Recovery banner (only when autosave file exists)
 
-2.1 The banner reads: "Pick up where you left off? An unsaved in-progress profile was found."
+2.1 The banner header reads: "Resume your previous session?" followed by the body text "An unsaved in-progress profile from a previous session was found. Pick up where you left off, or start over with the defaults. The rest of the app is locked until you choose."
 
 2.2 The banner has two buttons: **Resume** and **Start over**.
 
-2.3 Clicking **Resume** restores the prior session's state: selected canonical rules, choice picks, user-added alternatives, custom rules, custom domains, output dir, target repos, and per-domain repo routing. The banner disappears.
+2.3 Clicking **Resume** restores the prior session's state: selected canonical rules, chosen options, user-added options, custom rules, custom domains, output dir, target repos, and per-domain repo routing. The banner disappears.
 
 2.4 If the loaded recovery profile references canonical-rule ids that no longer exist in the current library (renamed or removed in a newer version), a red missing-ids banner appears below the recovery banner after Resume. See section 3.
 
-2.5 Clicking **Start over** deletes the autosave file and dismisses the banner. The session continues with default state (all Universal and Choice canonical rules pre-selected, no customs, default output dir).
+2.5 Clicking **Start over** deletes the autosave file and dismisses the banner. The session continues with default state (the default-selected domains' rules pre-selected, no customs, default output dir).
 
 2.6 The autosave file path is platform-specific:
 - macOS: `~/Library/Application Support/camerata/in-progress.json`
@@ -47,7 +47,7 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 3.3 The banner has a **Dismiss** button that hides it.
 
-3.4 Selections, choices, and custom-alternative mappings for missing ids are silently dropped. All other state from the profile is applied normally.
+3.4 Selections, chosen options, and custom-option mappings for missing ids are silently dropped. All other state from the profile is applied normally.
 
 ---
 
@@ -70,11 +70,11 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 4.4 **Generate** opens the Generate-confirm banner (section 4A). The actual emit (scaffolded files written to the output directory or per-domain repos) happens from inside that banner so the user has a clear save-or-skip choice before the in-progress autosave is cleared.
 
-4.5 **Save Profile…** opens a native save dialog with default filename `camerata.profile.json`. Saves a profile JSON file containing canonical-rule selections by id, choice picks by id, custom-alternative content by id, custom rules in full, custom domains, output dir, target repos, and per-domain routing. Profiles are resilient to library updates because they reference canonical content by id, not by snapshot.
+4.5 **Save Profile…** opens a native save dialog with default filename `camerata.profile.json`. Saves a profile JSON file containing canonical-rule selections by id, chosen options by id (rule id → option id), custom-option content by id, custom rules in full, custom domains, output dir, target repos, and per-domain routing. Profiles are resilient to library updates because they reference canonical content by id, not by snapshot.
 
 4.6 **Load Profile…** opens a native open dialog filtered to `.json` files. On selection, applies the profile state. If any selected id is no longer in the library, the red missing-ids banner appears (section 3).
 
-4.7 **Export JSON…** opens a save dialog with default filename `camerata.selections.json`. Exports the FULL content of every selected principle (id + title + summary + why + alternatives + chosen option) as JSON. Use this for interchange with external systems that need the rule content embedded. NOT to be confused with Save Profile — Export JSON is a content snapshot, Save Profile is an id-based reference.
+4.7 **Export JSON…** opens a save dialog with default filename `camerata.selections.json`. Exports the FULL content of every selected principle (the whole principle flattened — id, title, tag, domain, layer, enforcement, default, the `decision` block, and the `options` list — plus the `chosen` option id, or null when the rule's default is taken, and a `custom_directive` when the user authored their own option inline) as JSON. Use this for interchange with external systems that need the rule content embedded. NOT to be confused with Save Profile — Export JSON is a content snapshot, Save Profile is an id-based reference.
 
 4.8 **Targets…** toggles the Target Repos panel (section 5).
 
@@ -243,7 +243,7 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 8.1 Just below the domain button, when expanded, a row of three small action buttons appears: **Defaults**, **All**, **Clear**.
 
-8.2 **Defaults** sets the selection state of this domain's rules back to library defaults (Universal and Choice tags on, Stack tags off).
+8.2 **Defaults** sets the selection state of this domain's rules back to library defaults: each rule is checked or unchecked according to its own top-level `default` bool.
 
 8.3 **All** selects every rule in this domain.
 
@@ -251,7 +251,7 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 8.5 Each principle in the domain appears as a row containing:
 - A checkbox (except in the meta-documentation domains `howto` and `contributing`, where the checkbox is omitted because those rules are documentation, not selectable conventions)
-- A tag glyph in brackets: `[U]` for Universal, `[S]` for Stack, `[C]` for Choice
+- A tag glyph in brackets: `[U]` for Universal, `[S]` for Stack
 - The principle title as a clickable blue link
 
 8.6 Clicking the title opens the principle detail in the right column.
@@ -315,31 +315,35 @@ Tested against: `camerata-gui` v0.1.0 (Dioxus Desktop).
 
 12.2 Below the title, the principle id appears in small grey monospace font.
 
-12.3 The summary follows, rendered with a markdown-lite formatter:
-- Lines starting with `# ` render as section headings (h3-sized).
-- Lines starting with `## ` render as sub-headings (h4-sized).
-- Consecutive lines starting with `- ` group into a bulleted list.
-- Blank lines separate paragraphs.
-- Any other non-empty line renders as a paragraph.
+12.3 A bold "Decision:" label follows, then the rule's `decision.question` rendered as a paragraph.
 
-Most canonical rules don't use these markers (their summaries are plain prose, which still renders as paragraphs). The Camerata user guide and any future long-form documentation use the markers for readability.
+12.4 If the rule has no `decision.default` (a route-to-human decision), an amber line appears: "No default — this decision requires your choice before it can emit."
 
-12.4 If the principle has a `why` field, it appears as a paragraph prefixed with bold "Why:".
+12.5 The rule's `decision.why` follows as a paragraph prefixed with bold "Why:".
 
-12.5 For canonical rules NOT in the `contributing` domain, a "Choose how to adopt this:" section follows with one button per option:
-- "Adopt as written (default)" — highlighted when selected
-- "Alternative: <text>" — one per `alternatives` entry from the rule
-- "Your alternative: <text>" — one per user-added alternative on this rule
+12.6 For canonical rules NOT in the meta-documentation domains (`howto` and `contributing`), a "Choose how to adopt this:" section follows with one button per `[[option]]` on the rule. Each button shows:
+- The option's `label`, with " (default)" appended when that option is the rule's `decision.default`.
+- Below the label, the option's `directive` rendered through the markdown-lite formatter:
+  - Lines starting with `# ` render as section headings.
+  - Lines starting with `## ` render as sub-headings.
+  - Consecutive lines starting with `- ` group into a bulleted list.
+  - Blank lines separate paragraphs; any other non-empty line renders as a paragraph.
 
-12.6 Selecting a button updates the chosen option for this rule. The selected button is highlighted blue; unselected buttons have a white background.
+Most option directives are plain prose, which renders as paragraphs. The Camerata user guide and other long-form documentation use the markers for readability.
 
-12.7 For canonical rules in the meta-documentation domains (`howto` and `contributing`), the "Choose how to adopt" section is hidden because those rules are documentation, not adoptable conventions.
+12.7 Selecting an option button updates the chosen option for this rule. The selected button is highlighted; unselected buttons have a white background. Picking the rule's default option clears the stored choice (so the emit stays at the default); picking any other option stores that option's id.
 
-12.8 Below the alternative buttons, a "Add your own alternative (include the context it requires):" section provides:
-- A textarea for the alternative description
-- An **Add alternative** button
+12.8 The default option is selected on first view even when the user has made no explicit pick (a rule with a `decision.default` shows that option highlighted). A no-default rule shows nothing highlighted until the user picks an option.
 
-12.9 Adding a non-empty alternative appends it to this rule's user-alternatives list, automatically selects it, and clears the textarea.
+12.9 For canonical rules in the meta-documentation domains (`howto` and `contributing`), the "Choose how to adopt this:" section (and the add-your-own-option control below it) is hidden because those rules are documentation, not adoptable conventions.
+
+12.10 Below the canonical option buttons, any user-authored options for this rule render as additional buttons labeled "Your option: <directive text>", one per entry the user added.
+
+12.11 Below those, an "Add your own option (write the directive the agent should follow):" section provides:
+- A textarea (placeholder: "Write the directive for your option as a single self-contained instruction…") for the option's directive.
+- An **Add option** button.
+
+12.12 Adding a non-empty option appends its directive text to this rule's user-options list, automatically selects it (the rule's chosen value becomes that directive text), and clears the textarea.
 
 ---
 
@@ -351,7 +355,7 @@ Most canonical rules don't use these markers (their summaries are plain prose, w
 
 ## 14. Autosave behavior
 
-14.1 Autosave fires automatically whenever any tracked state changes: selections, choices, custom alternatives, custom rules, custom domains, output dir, repos, or per-domain routing.
+14.1 Autosave fires automatically whenever any tracked state changes: selections, chosen options, custom options, custom rules, custom domains, output dir, repos, or per-domain routing.
 
 14.2 The first fire on launch is skipped — a fresh launch with no user interaction does NOT create an autosave file. This prevents a misleading recovery banner on the next launch.
 
@@ -377,19 +381,20 @@ Most canonical rules don't use these markers (their summaries are plain prose, w
 ## 15. Profile schema (Save Profile / Load Profile JSON)
 
 15.1 The profile JSON contains:
-- `version`: integer schema version (currently 1)
+- `version`: integer schema version (currently 2; bumped from 1 when `chosen` changed from storing full alternative text to storing the chosen option id)
 - `selected_ids`: array of canonical-rule ids the user selected
-- `chosen`: object mapping rule id → chosen alternative text
-- `custom_alternatives`: object mapping rule id → array of user-authored alternatives
+- `selected_domains`: array of domain names active at save time, restored on load so per-rule selections re-anchor to a consistent domain context (carries `#[serde(default)]`, so older profiles without it still load)
+- `chosen`: object mapping rule id → chosen option id (the slug-cased `[[option]]` id). When the user authored their own option inline, the value is that custom directive text instead of a library option id.
+- `custom_alternatives`: object mapping rule id → array of user-authored option directives (the field name is still `custom_alternatives` in the JSON; it holds the directives of options the user added to a canonical rule)
 - `custom_rules`: array of `{ name, body, domain }` objects (full content)
 - `custom_domains`: array of user-created domain name strings
 - `out_dir`: output directory string
 - `repos`: array of target repo path strings
 - `domain_repos`: object mapping domain name → array of repo path strings
 
-15.2 On load, canonical-rule content (summary, why, alternatives) is read from the CURRENT library by id. This means library updates to a canonical rule's content are picked up automatically on the next profile load.
+15.2 On load, canonical-rule content (the `decision` block and the `options` list, including each option's `directive` and `why`) is read from the CURRENT library by id. This means library updates to a canonical rule's content are picked up automatically on the next profile load. A legacy profile whose `chosen` value was full alternative text (the pre-decision-first form) is best-effort upgraded to option ids on load by text-matching against the current library; entries that match nothing are left untouched and surfaced rather than dropped.
 
-15.3 Custom content (rules, domains, alternatives) is restored in full because the user is the source of truth for it.
+15.3 Custom content (custom rules, custom domains, and user-authored options) is restored in full because the user is the source of truth for it.
 
 ---
 
