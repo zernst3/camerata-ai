@@ -5,6 +5,7 @@ domain = "api-layer"
 layer = "universal"
 enforcement = "structured"
 default = true
+qualifies = "A disallowed-types lint or a grep gate fails the build if a binary floating-point type (f64, double, Number, and equivalents) appears in any type, field, or column whose role requires exact arithmetic, and a property test asserts that a long chain of additions and roundings over those values loses zero precision against an exact-decimal oracle. Conformance holds when the float ban runs in CI over the exactness-sensitive surface and the precision property test passes; it fails when float types reach those values or no precision oracle exists."
 
 [decision]
 question = "What position does the project take on: Monetary and quantity values use exact decimal types in code; never floats?"
