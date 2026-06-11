@@ -196,12 +196,12 @@ Cross-rule references *within* the same domain are tolerated but discouraged. If
 
 A rule states what the architecture or codebase **should look like**, not what a team or agent **should do** or in what order. A rule that reads as a numbered build plan, a porting sequence, a phased rollout, or a step-by-step procedure is describing a task, not a principle, and belongs in project documentation (a README, a runbook, a planning doc) rather than in camerata.
 
-The diagnostic test: take the verbs in the rule's summary and ask whether they describe a static property or a sequence of actions.
+The diagnostic test: take the verbs in the rule's directive(s) and ask whether they describe a static property or a sequence of actions.
 
 - Properties: "is," "has," "lives in," "composes," "carries," "uses," "returns."
 - Procedures: "build," "first," "then," "before," "consult," "in this order," "in this phase."
 
-A rule whose summary leans on the second set of verbs is almost always task-shaped. The architectural principle hiding inside it (if there is one) is what should be extracted, restated as a property, and shipped; the procedural wrapper should be discarded.
+A rule whose directives lean on the second set of verbs is almost always task-shaped. The architectural principle hiding inside it (if there is one) is what should be extracted, restated as a property, and shipped; the procedural wrapper should be discarded.
 
 Concrete example:
 - **Task-shaped (wrong):** "Build the primitive component library first, then port features. Build primitives in this order: layout, forms, feedback, navigation, overlays, display."
@@ -225,8 +225,8 @@ A rule that says "use the v2 component library" or "follow the AUTH-1 pattern" o
 
 **Project CONTEXT also belongs out of the directive surface, not just project names.** Each option's `directive` describes an instruction. It does NOT describe the project context that motivated the directive, the operational workflow the directive plugs into, or the rule author's specific orchestration setup. Examples of context leaks that fail this rule even when no project is named:
 
-- Examples in the summary that name SPECIFIC situations the author had in mind ("(when porting the Rust:Dioxus layer of agora.new...)", "(when our team's review cadence is asynchronous...)") — these encode the author's project context.
-- Cross-rule references to other camerata rules by name inside the summary or alternatives ("...recorded in the auto-calls ledger," "...flagged per ORCH-FOO-1"). Rules must stand alone; if a concept from another rule is load-bearing, restate it inline as an abstract operational property, not as a citation.
+- Examples in a directive that name SPECIFIC situations the author had in mind ("(when porting the Rust:Dioxus layer of agora.new...)", "(when our team's review cadence is asynchronous...)") — these encode the author's project context.
+- Cross-rule references to other camerata rules by name inside any directive or option ("...recorded in the auto-calls ledger," "...flagged per ORCH-FOO-1"). Rules must stand alone; if a concept from another rule is load-bearing, restate it inline as an abstract operational property, not as a citation.
 - Operational vocabulary that assumes a specific workflow shape ("our weekly ledger review pass," "the track record of overrides this team has built," "the iteration cadence the routine runs at") — these encode the author's project's workflow rather than the rule's directive.
 
 **Important distinction: ABSTRACT CATEGORY TAXONOMIES that apply across projects are NOT leaks** and are often helpful for giving the consumer agent operational calibration. A taxonomy like "(such as the rule's stance conflicting with project positioning, a downstream constraint defeating the rule's rationale, an ecosystem convention diverging from the rule's stance, or similar context-fit failures)" describes generic failure modes that apply in any industry, on any stack. A reader in healthcare, fintech, or game development would recognize all three as relevant. Taxonomies like this give the consumer agent a starting framework for "when does this rule fire?" without committing the agent to a closed checklist. Frame taxonomies as illustrative ("such as," "or similar"), never as exhaustive ("if and only if").
@@ -280,13 +280,19 @@ Format: lowercase, hyphens for compound capability names (`api-layer`, `ci-cd`),
 
 ---
 
-## v0.1 limitations and v0.2 roadmap
+## Shipped in v0.2, and the forward roadmap
 
-These are known gaps in v0.1.0 that are documented here so contributors understand what camerata does and does not commit to today, and so that future contributors do not work around the gaps in ways that conflict with planned v0.2 features.
+This section records what camerata committed to in the v0.2 release and the gaps that remain open, so contributors understand what the tool does and does not do today, and so that future contributors do not work around the open gaps in ways that conflict with planned features.
 
-**Emit is overwrite-only.** Running `camerata generate` against a directory that already contains AGENTS.md, CONVENTIONS.md, or camerata.lock fully replaces those files. There is no merge step. The GUI's Generate-confirm banner lists the files that would be overwritten so the user can cancel and back them up first; the CLI does not yet check, though it will in a follow-up. Hand edits to the emitted files are lost on regeneration. Workaround for v0.1: keep all rule changes in the principle library (not in the emitted file) and re-run camerata to pick them up. v0.2 will add an upsert path that preserves hand-edited regions where possible.
+### Shipped in v0.2
 
-**v0.2 upsert design constraint (locked 2026-06-01): user-customized state is sacred.** The upsert merges upstream library updates into the project's existing emit; it does NOT overwrite any state the architect customized. The sacred set:
+The decision-first schema rework landed: every rule is now a `[decision]` block with a uniform list of `[[option]]` entries, each option carrying a stable `id`, a `label`, a consumer-facing `directive`, and an architect-facing `why`. The former `summary`/`alternatives`/`[choice]` shape is fully retired. See *Schema reminders* and *Field audiences* above for the current model. The two items below were once on the roadmap and are now part of the schema (detailed at the end of this section): stable per-option ids with a per-option `why`, and the optional `qualifies` conformance test.
+
+### Forward roadmap
+
+**Emit is overwrite-only.** Running `camerata generate` against a directory that already contains AGENTS.md, CONVENTIONS.md, or camerata.lock fully replaces those files. There is no merge step. The GUI's Generate-confirm banner lists the files that would be overwritten so the user can cancel and back them up first; the CLI does not yet check, though it will in a follow-up. Hand edits to the emitted files are lost on regeneration. Workaround today: keep all rule changes in the principle library (not in the emitted file) and re-run camerata to pick them up. A future release will add an upsert path that preserves hand-edited regions where possible.
+
+**Upsert design constraint (locked 2026-06-01): user-customized state is sacred.** The planned upsert merges upstream library updates into the project's existing emit; it does NOT overwrite any state the architect customized. The sacred set:
 
 - `Profile.chosen` — the option ids the architect selected on each rule
 - `Profile.custom_alternatives` — custom options the architect added to canonical rules
@@ -297,7 +303,9 @@ These are known gaps in v0.1.0 that are documented here so contributors understa
 
 When the upsert encounters a conflict between an upstream library update and a user-customized rule, it surfaces a review prompt rather than silently overwriting. This connects to ORCH-CONTEXT-OVERRIDE-1: that rule requires explicit human sign-off before the agent overrides a documented rule. The upsert preservation contract is what makes that sign-off durable — once a human has signed off on a project-specific override, the override survives every subsequent regeneration. Without the preservation contract, the sign-off has no durability and the rule degrades into "pause now, lose the work later." The two are halves of the same architectural commitment.
 
-**No reverse-engineering of a profile from an existing repo.** Camerata cannot today read a target repo's AGENTS.md / CONVENTIONS.md / camerata.lock and reconstruct a Profile JSON from them. The lock file records installed IDs and content hashes, and we could in principle parse the emit files back into a profile, but two things make this nontrivial enough to defer: (1) recovering which option was chosen requires text-matching the emitted body against each option's directive, which is fragile to whitespace and casing changes, and (2) custom rules live in AGENTS.md under their `CUSTOM-name` headings and parsing them back into the Profile schema requires careful handling of edge cases. v0.2 will introduce a `camerata import` subcommand that performs this reconstruction with an explicit "best effort" caveat.
+**No reverse-engineering of a profile from an existing repo.** Camerata cannot today read a target repo's AGENTS.md / CONVENTIONS.md / camerata.lock and reconstruct a Profile JSON from them. The lock file records installed IDs and content hashes, and we could in principle parse the emit files back into a profile, but two things make this nontrivial enough to defer: (1) recovering which option was chosen requires text-matching the emitted body against each option's directive, which is fragile to whitespace and casing changes, and (2) custom rules live in AGENTS.md under their `CUSTOM-name` headings and parsing them back into the Profile schema requires careful handling of edge cases. A future release will introduce a `camerata import` subcommand that performs this reconstruction with an explicit "best effort" caveat.
+
+### Schema items that shipped in v0.2
 
 **Stable option IDs and per-option `why` are now part of the schema.** The two former roadmap items (stable alternative IDs and a per-alternative `why` field) shipped together in the decision-first schema: every option carries a stable `id` (citable in commits and stored in profiles) and its own `why` alongside its `directive`. The rule-level reasoning now lives in `decision.why`, and per-option rejection rationale lives in each `option.why`. Author new rules directly in this shape; there is no longer an alternatives array.
 
