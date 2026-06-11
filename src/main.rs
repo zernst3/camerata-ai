@@ -4,10 +4,10 @@
 //! Tags set the DEFAULT selection state, but nothing is mandatory:
 //! universal is on by default yet can be dropped with `--minimal`.
 
+use anyhow::Result;
 use camerata::emit::{self, Selection};
 use camerata::principle::{Principle, Tag};
 use camerata::{default_principles_dir, is_meta_domain, registry, DEFAULT_SELECTED_DOMAINS};
-use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -63,6 +63,13 @@ enum Command {
     },
     /// Print the whole principle library as JSON (catalog export).
     Export,
+    /// Report installed rules whose upstream content has changed since the
+    /// project's camerata.lock was written, or that no longer exist.
+    Outdated {
+        /// Directory containing the camerata.lock to check (defaults to ".").
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -80,19 +87,64 @@ fn main() -> Result<()> {
             minimal,
             all,
             json,
-        } => cmd_init(&principles, &out, out_domain, stacks, defaults, minimal, all, json),
+        } => cmd_init(
+            &principles,
+            &out,
+            out_domain,
+            stacks,
+            defaults,
+            minimal,
+            all,
+            json,
+        ),
         Command::Export => {
             println!("{}", emit::catalog_json(&principles)?);
             Ok(())
         }
+        Command::Outdated { dir } => cmd_outdated(&principles, &dir),
     }
+}
+
+/// Read the project's camerata.lock and report any installed rule whose
+/// upstream content has drifted or that no longer exists. Exits via the
+/// returned Result; a non-empty drift set prints a report (still Ok, so the
+/// command is informational rather than failing).
+fn cmd_outdated(principles: &[Principle], dir: &Path) -> Result<()> {
+    let lock_path = dir.join("camerata.lock");
+    let text = std::fs::read_to_string(&lock_path).map_err(|e| {
+        anyhow::anyhow!(
+            "reading {}: {e} (run `camerata init` here first)",
+            lock_path.display()
+        )
+    })?;
+    let installed = emit::parse_lock(&text);
+    let drift = emit::outdated(&installed, principles);
+    if drift.is_empty() {
+        println!(
+            "camerata: up to date ({} installed rule(s) match the current library).",
+            installed.len()
+        );
+        return Ok(());
+    }
+    println!(
+        "camerata: {} rule(s) drifted from {}:",
+        drift.len(),
+        lock_path.display()
+    );
+    for d in &drift {
+        match d {
+            emit::Drift::Changed(id) => println!("  changed   {id}  (upstream content updated)"),
+            emit::Drift::Removed(id) => println!("  removed   {id}  (no longer in the library)"),
+        }
+    }
+    println!("\nRe-run `camerata init` to regenerate against the current library.");
+    Ok(())
 }
 
 fn tag_glyph(t: Tag) -> &'static str {
     match t {
         Tag::Universal => "[U]",
         Tag::Stack => "[S]",
-        Tag::Choice => "[C]",
     }
 }
 
@@ -107,7 +159,7 @@ fn cmd_list(principles: &[Principle]) -> Result<()> {
             p.title
         );
     }
-    println!("\nlegend:  [U]niversal (default-on)   [S]tack-gated   [C]hoice (prompts you)");
+    println!("\nlegend:  [U]niversal (default-on)   [S]tack-gated");
     Ok(())
 }
 
@@ -128,6 +180,53 @@ fn in_scope(p: &Principle, user_domains: &[String]) -> bool {
     user_domains
         .iter()
         .any(|d| d == &p.domain || d == stack_base)
+}
+
+/// Resolve the chosen option id for a rule under the decision-first schema,
+/// returning the value for `Selection.chosen` and whether the rule should be
+/// emitted at all.
+///
+/// - `defaults` (non-interactive): take the default option (`None`). A rule with
+///   no default cannot auto-resolve, so it is skipped (route-to-human) and the
+///   skip is surfaced on stderr.
+/// - interactive: prompt with the option labels when there is a real choice
+///   (more than one option). Returns `Some(option_id)` for the picked option,
+///   or `None` when the picked option is the default.
+fn resolve_option<'a>(p: &'a Principle, defaults: bool) -> Result<Option<Selection<'a>>> {
+    if defaults {
+        if p.has_no_default() {
+            eprintln!(
+                "note: skipping {} — no default option; resolve it interactively or in the GUI.",
+                p.id
+            );
+            return Ok(None);
+        }
+        return Ok(Some(Selection::new(p)));
+    }
+    // Interactive. With a single option there is nothing to ask.
+    if p.options.len() <= 1 {
+        if p.has_no_default() && p.options.is_empty() {
+            return Ok(None);
+        }
+        return Ok(Some(Selection::new(p)));
+    }
+    let labels: Vec<String> = p.options.iter().map(|o| o.label.clone()).collect();
+    let picked_label = inquire::Select::new(&p.decision.question, labels).prompt()?;
+    let picked = p
+        .options
+        .iter()
+        .find(|o| o.label == picked_label)
+        .expect("picked label came from the option list");
+    let chosen = if Some(picked.id.as_str()) == p.decision.default.as_deref() {
+        None
+    } else {
+        Some(picked.id.clone())
+    };
+    Ok(Some(Selection {
+        principle: p,
+        chosen,
+        custom_directive: None,
+    }))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -182,28 +281,11 @@ fn cmd_init(
         if minimal && p.domain == "*" {
             continue;
         }
-        let chosen = match p.tag {
-            Tag::Universal | Tag::Stack => None,
-            Tag::Choice => match (&p.choice, defaults) {
-                // In --defaults mode, "take the default" means use the
-                // rule's summary as the emitted body. Setting chosen to the
-                // option-label here would make the emit show just the label
-                // ("tiered") instead of the prose summary that describes
-                // what the default actually entails.
-                (Some(_), true) => None,
-                (Some(c), false) => {
-                    let picked = inquire::Select::new(&c.prompt, c.options.clone()).prompt()?;
-                    // Treat an explicit pick of the default option the
-                    // same as --defaults: emit the summary, not the label.
-                    if picked == c.default { None } else { Some(picked) }
-                }
-                (None, _) => None,
-            },
-        };
-        selections.push(Selection {
-            principle: p,
-            chosen,
-        });
+        // Resolve which option this rule adopts (default, picked, or skipped
+        // for unresolved no-default rules under --defaults).
+        if let Some(sel) = resolve_option(p, defaults)? {
+            selections.push(sel);
+        }
     }
 
     let results = emit::scaffold_routed(out, &overrides, &selections, &[])?;
@@ -226,4 +308,87 @@ fn cmd_init(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn defaulted_rule() -> Principle {
+        let toml_text = r#"
+id = "TEST-DEF-1"
+title = "rule with a default"
+tag = "universal"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "pick one"
+default = "primary"
+why = "reason"
+
+[[option]]
+id = "primary"
+label = "the primary option"
+directive = "the default directive"
+why = "primary is correct here"
+
+[[option]]
+id = "alt"
+label = "the alt option"
+directive = "the alternative directive"
+why = "looser; narrow contexts only"
+"#;
+        toml::from_str(toml_text).expect("fixture parses")
+    }
+
+    fn no_default_rule() -> Principle {
+        let toml_text = r#"
+id = "TEST-NODEF-1"
+title = "open decision"
+tag = "universal"
+domain = "agentic"
+layer = "universal"
+enforcement = "prose"
+default = true
+
+[decision]
+question = "which posture?"
+why = "no universal answer"
+
+[[option]]
+id = "a"
+label = "a"
+directive = "do a"
+why = "defensible when X"
+
+[[option]]
+id = "b"
+label = "b"
+directive = "do b"
+why = "defensible when Y"
+"#;
+        toml::from_str(toml_text).expect("fixture parses")
+    }
+
+    #[test]
+    fn resolve_option_defaults_mode_takes_default() {
+        let p = defaulted_rule();
+        let sel = resolve_option(&p, true).expect("ok").expect("selection");
+        assert!(
+            sel.chosen.is_none(),
+            "defaults mode takes the default option"
+        );
+        assert_eq!(sel.resolve_directive(), Some("the default directive"));
+    }
+
+    #[test]
+    fn resolve_option_defaults_mode_skips_no_default_rule() {
+        let p = no_default_rule();
+        // A no-default rule cannot auto-resolve; it is skipped under --defaults.
+        let sel = resolve_option(&p, true).expect("ok");
+        assert!(sel.is_none(), "no-default rule is skipped in defaults mode");
+    }
 }
