@@ -1,6 +1,6 @@
 [package]
 name = "camerata-ai"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Compose AI-orchestration principles into installable guardrails for your repos."
 authors = ["Zachary Ernst <zernst3@gmail.com>"]
