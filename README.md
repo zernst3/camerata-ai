@@ -4,7 +4,7 @@
 
 camerata is a small Rust tool (CLI + Dioxus Desktop GUI) that turns a curated library of AI-orchestration principles into the config files your AI coding tools actually read. Pick the principles that apply to your project, optionally add your own, route each domain to one or more target repos, and generate.
 
-> **AI tool support (v0.1):** camerata emits to the **[AGENTS.md](https://agents.md/)** open standard (the file lives at the repo root). AGENTS.md is the cross-tool format read by Claude Code, Cursor, Codex, Copilot, Sourcegraph, and others, so a single emit covers them all out of the box. Structured rules (with rule IDs) also land in `CONVENTIONS.md` for grep + commit citation. The emit architecture is tool-agnostic; legacy `CLAUDE.md` or `.cursorrules` adapters can be added when there's demand.
+> **AI tool support (v0.2):** camerata emits to the **[AGENTS.md](https://agents.md/)** open standard (the file lives at the repo root). AGENTS.md is the cross-tool format read by Claude Code, Cursor, Codex, Copilot, Sourcegraph, and others, so a single emit covers them all out of the box. Structured rules (with rule IDs) also land in `CONVENTIONS.md` for grep + commit citation. The emit architecture is tool-agnostic; legacy `CLAUDE.md` or `.cursorrules` adapters can be added when there's demand.
 
 ## Why
 
@@ -43,7 +43,7 @@ The CLI also accepts `--out-domain DOMAIN=PATH` (repeatable; repeat the same dom
 
 ## Using the CLI
 
-The CLI is a thin frontend over the same library the GUI uses. It is the right surface for CI, scripted scaffolds, and headless environments. Profile save/load, custom rules, and custom domains are GUI-only in v0.1; the CLI focuses on scaffolding the canonical library.
+The CLI is a thin frontend over the same library the GUI uses. It is the right surface for CI, scripted scaffolds, and headless environments. Profile save/load, custom rules, and custom domains are GUI-only today; the CLI focuses on scaffolding the canonical library.
 
 ### Commands
 
@@ -98,7 +98,7 @@ camerata init \
   --defaults
 ```
 
-### CLI vs GUI in v0.1
+### CLI vs GUI today
 
 | Feature | CLI | GUI |
 |---|---|---|
@@ -111,7 +111,7 @@ camerata init \
 | Autosave + crash recovery | — | ✓ |
 | Guided exit prompt | — | ✓ |
 
-Profile and custom-rule support on the CLI is planned for v0.2. The likely shape is a `--profile <path>` flag that loads a profile JSON written by the GUI, plus a `--save-profile <path>` flag that captures the current run's choices.
+Profile and custom-rule support on the CLI is planned for a future release. The likely shape is a `--profile <path>` flag that loads a profile JSON written by the GUI, plus a `--save-profile <path>` flag that captures the current run's choices.
 
 ## Using the GUI
 
@@ -264,7 +264,7 @@ cargo run --bin camerata-lint -- path/to/principles
 
 The same linter runs on every PR via [`.github/workflows/lint-principles.yml`](.github/workflows/lint-principles.yml), along with a check that the PR has not modified `DEFAULT_SELECTED_DOMAINS` in `src/lib.rs` (that's a maintainer-only change per the Anatomy rule).
 
-Substantive review — options being real positions some team defends, "why" answering why and not what, no cross-domain references — is handled by human reviewers today and is on the v0.2 roadmap for an LLM-assisted reviewer.
+Substantive review — options being real positions some team defends, "why" answering why and not what, no cross-domain references — is handled by human reviewers today and is on the roadmap for a future LLM-assisted reviewer.
 
 ## License
 
